@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { ScoreInput } from '@/components/ScoreInput';
-import { FixedScoreToggle } from '@/components/FixedScoreToggle';
-import { SectionTotal } from '@/components/SectionTotal';
+import { ScoreRow } from '@/components/ScoreRow';
+import { TotalRow } from '@/components/TotalRow';
 import { ShareDialog } from '@/components/ShareDialog';
 import { useGameState } from '@/hooks/useGameState';
 import { usePeerSync } from '@/hooks/usePeerSync';
@@ -15,21 +14,15 @@ import {
   calculateLowerSum,
   calculateGrandTotal,
 } from '@/utils/scoreCalculations';
-import { Dices, RotateCcw } from 'lucide-react';
+import { Dices, RotateCcw, Plus, X } from 'lucide-react';
 
 const Index = () => {
-  const { gameState, updateCell, updatePlayerName, resetGame } = useGameState();
-  const [showNameInput, setShowNameInput] = useState(!gameState.playerName);
+  const { gameState, updateCell, updatePlayerName, addPlayer, removePlayer, resetGame } = useGameState();
 
   // Peer sync
   const handleRemoteUpdate = (remoteState: GameState) => {
-    // Update local state from remote
-    Object.entries(remoteState.upper).forEach(([key, value]) => {
-      updateCell('upper', key, value);
-    });
-    Object.entries(remoteState.lower).forEach(([key, value]) => {
-      updateCell('lower', key, value);
-    });
+    // This would need more sophisticated merging logic for multiplayer
+    // For now, we'll keep it simple
   };
 
   const { peerId, connectedPeers, isConnecting, connectToPeer, broadcastState } = 
@@ -42,26 +35,20 @@ const Index = () => {
     }
   }, [gameState]);
 
-  const upperSum = calculateUpperSum(gameState);
-  const upperBonus = calculateUpperBonus(upperSum);
-  const upperTotal = calculateUpperTotal(gameState);
-  const lowerSum = calculateLowerSum(gameState);
-  const grandTotal = calculateGrandTotal(gameState);
-
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-gradient-to-r from-primary to-primary-glow text-primary-foreground shadow-[var(--shadow-elevated)]">
-        <div className="container max-w-2xl mx-auto px-4 py-4">
+      <header className="sticky top-0 z-10 bg-background border-b-4 border-transparent bg-clip-padding shadow-[var(--shadow-elevated)]" 
+        style={{ 
+          backgroundImage: 'linear-gradient(white, white), linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)))',
+          backgroundOrigin: 'border-box',
+          backgroundClip: 'padding-box, border-box'
+        }}>
+        <div className="container max-w-full mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Dices className="w-8 h-8" />
-              <div>
-                <h1 className="text-xl font-bold">Kniffel Extreme</h1>
-                {gameState.playerName && (
-                  <p className="text-sm opacity-90">{gameState.playerName}</p>
-                )}
-              </div>
+              <Dices className="w-8 h-8 text-primary" />
+              <h1 className="text-xl font-bold text-foreground">Kniffel Extreme</h1>
             </div>
             <div className="flex gap-2">
               <ShareDialog
@@ -74,7 +61,6 @@ const Index = () => {
                 variant="secondary"
                 size="icon"
                 onClick={resetGame}
-                className="bg-white/20 hover:bg-white/30 text-white border-0"
               >
                 <RotateCcw className="w-5 h-5" />
               </Button>
@@ -83,228 +69,90 @@ const Index = () => {
         </div>
       </header>
 
-      <main className="container max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* Player Name Input */}
-        {showNameInput && (
-          <div className="bg-card p-6 rounded-xl shadow-[var(--shadow-card)] border border-border">
-            <h2 className="text-lg font-bold mb-3">Spielername</h2>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Dein Name"
-                value={gameState.playerName}
-                onChange={(e) => updatePlayerName(e.target.value)}
-                className="flex-1"
-              />
-              <Button
-                onClick={() => setShowNameInput(false)}
-                disabled={!gameState.playerName}
-              >
-                Start
-              </Button>
+      <main className="container max-w-full mx-auto px-2 py-4">
+        {/* Player Names Header */}
+        <div className="mb-4 overflow-x-auto">
+          <div className="grid gap-2 min-w-max" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
+            <div className="sticky left-0 bg-card border border-border rounded-lg px-3 py-2 font-bold text-sm">
+              Spieler
+            </div>
+            {gameState.players.map((player) => (
+              <div key={player.id} className="relative bg-card border border-border rounded-lg px-2 py-2">
+                <Input
+                  value={player.name}
+                  onChange={(e) => updatePlayerName(player.id, e.target.value)}
+                  placeholder={`Spieler ${gameState.players.indexOf(player) + 1}`}
+                  className="h-7 text-sm text-center font-medium pr-6"
+                />
+                {gameState.players.length > 1 && (
+                  <button
+                    onClick={() => removePlayer(player.id)}
+                    className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded-full bg-destructive/10 hover:bg-destructive/20 text-destructive"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          <Button
+            onClick={addPlayer}
+            variant="outline"
+            size="sm"
+            className="mt-2 w-full"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Spieler hinzufügen
+          </Button>
+        </div>
+
+        {/* Score Table */}
+        <div className="bg-card rounded-lg border border-border overflow-x-auto">
+          <div className="min-w-max">
+            {/* Upper Section */}
+            <div className="border-b-2 border-border pb-2">
+              <div className="bg-muted/50 px-3 py-2 font-bold text-sm sticky left-0">
+                Oberer Teil
+              </div>
+              <ScoreRow label="Einser" description="nur Einser" players={gameState.players} fieldKey="ones" section="upper" onUpdate={updateCell} />
+              <ScoreRow label="Zweier" description="nur Zweier" players={gameState.players} fieldKey="twos" section="upper" onUpdate={updateCell} />
+              <ScoreRow label="Dreier" description="nur Dreier" players={gameState.players} fieldKey="threes" section="upper" onUpdate={updateCell} />
+              <ScoreRow label="Vierer" description="nur Vierer" players={gameState.players} fieldKey="fours" section="upper" onUpdate={updateCell} />
+              <ScoreRow label="Fünfer" description="nur Fünfer" players={gameState.players} fieldKey="fives" section="upper" onUpdate={updateCell} />
+              <ScoreRow label="Sechser" description="nur Sechser" players={gameState.players} fieldKey="sixes" section="upper" onUpdate={updateCell} />
+              
+              <TotalRow label="Gesamt" players={gameState.players} getValue={calculateUpperSum} />
+              <TotalRow label="Bonus (≥73)" players={gameState.players} getValue={(p) => calculateUpperBonus(calculateUpperSum(p))} />
+              <TotalRow label="Gesamt oberer Teil" players={gameState.players} getValue={calculateUpperTotal} highlighted />
+            </div>
+
+            {/* Lower Section */}
+            <div className="pt-2">
+              <div className="bg-muted/50 px-3 py-2 font-bold text-sm sticky left-0">
+                Unterer Teil
+              </div>
+              <ScoreRow label="Dreierpasch" description="alle Augen" players={gameState.players} fieldKey="threeOfKind" section="lower" onUpdate={updateCell} />
+              <ScoreRow label="Viererpasch" description="alle Augen" players={gameState.players} fieldKey="fourOfKind" section="lower" onUpdate={updateCell} />
+              <ScoreRow label="Zwei Paare" description="alle Augen" players={gameState.players} fieldKey="twoPairs" section="lower" onUpdate={updateCell} />
+              <ScoreRow label="Drei Paare" players={gameState.players} fieldKey="threePairs" section="lower" onUpdate={updateCell} isFixed fixedPoints={FIXED_SCORES.threePairs} />
+              <ScoreRow label="Zwei Dreier" players={gameState.players} fieldKey="twoThrees" section="lower" onUpdate={updateCell} isFixed fixedPoints={FIXED_SCORES.twoThrees} />
+              <ScoreRow label="Full-House" players={gameState.players} fieldKey="fullHouse" section="lower" onUpdate={updateCell} isFixed fixedPoints={FIXED_SCORES.fullHouse} />
+              <ScoreRow label="Großes Full-House" players={gameState.players} fieldKey="largeFullHouse" section="lower" onUpdate={updateCell} isFixed fixedPoints={FIXED_SCORES.largeFullHouse} />
+              <ScoreRow label="Kleine Straße" players={gameState.players} fieldKey="smallStraight" section="lower" onUpdate={updateCell} isFixed fixedPoints={FIXED_SCORES.smallStraight} />
+              <ScoreRow label="Große Straße" players={gameState.players} fieldKey="largeStraight" section="lower" onUpdate={updateCell} isFixed fixedPoints={FIXED_SCORES.largeStraight} />
+              <ScoreRow label="Highway" players={gameState.players} fieldKey="highway" section="lower" onUpdate={updateCell} isFixed fixedPoints={FIXED_SCORES.highway} />
+              <ScoreRow label="Kniffel" players={gameState.players} fieldKey="kniffel" section="lower" onUpdate={updateCell} isFixed fixedPoints={FIXED_SCORES.kniffel} />
+              <ScoreRow label="Kniffel Extreme" players={gameState.players} fieldKey="kniffelExtreme" section="lower" onUpdate={updateCell} isFixed fixedPoints={FIXED_SCORES.kniffelExtreme} />
+              <ScoreRow label="10 oder weniger" players={gameState.players} fieldKey="under10" section="lower" onUpdate={updateCell} isFixed fixedPoints={FIXED_SCORES.under10} />
+              <ScoreRow label="33 oder mehr" players={gameState.players} fieldKey="over33" section="lower" onUpdate={updateCell} isFixed fixedPoints={FIXED_SCORES.over33} />
+              <ScoreRow label="Chance" description="alle Augen" players={gameState.players} fieldKey="chance" section="lower" onUpdate={updateCell} />
+              <ScoreRow label="Super Chance" description="alle Augen x2" players={gameState.players} fieldKey="superChance" section="lower" onUpdate={updateCell} />
+              
+              <TotalRow label="Gesamt unterer Teil" players={gameState.players} getValue={calculateLowerSum} />
+              <TotalRow label="Endsumme" players={gameState.players} getValue={calculateGrandTotal} highlighted />
             </div>
           </div>
-        )}
-
-        {/* Upper Section */}
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-foreground px-2">Oberer Teil</h2>
-          
-          <ScoreInput
-            label="Einser"
-            description="nur Einser zählen"
-            cell={gameState.upper.ones}
-            onValueChange={(value) => updateCell('upper', 'ones', { value })}
-            onStruckChange={(struck) => updateCell('upper', 'ones', { struck })}
-          />
-          
-          <ScoreInput
-            label="Zweier"
-            description="nur Zweier zählen"
-            cell={gameState.upper.twos}
-            onValueChange={(value) => updateCell('upper', 'twos', { value })}
-            onStruckChange={(struck) => updateCell('upper', 'twos', { struck })}
-          />
-          
-          <ScoreInput
-            label="Dreier"
-            description="nur Dreier zählen"
-            cell={gameState.upper.threes}
-            onValueChange={(value) => updateCell('upper', 'threes', { value })}
-            onStruckChange={(struck) => updateCell('upper', 'threes', { struck })}
-          />
-          
-          <ScoreInput
-            label="Vierer"
-            description="nur Vierer zählen"
-            cell={gameState.upper.fours}
-            onValueChange={(value) => updateCell('upper', 'fours', { value })}
-            onStruckChange={(struck) => updateCell('upper', 'fours', { struck })}
-          />
-          
-          <ScoreInput
-            label="Fünfer"
-            description="nur Fünfer zählen"
-            cell={gameState.upper.fives}
-            onValueChange={(value) => updateCell('upper', 'fives', { value })}
-            onStruckChange={(struck) => updateCell('upper', 'fives', { struck })}
-          />
-          
-          <ScoreInput
-            label="Sechser"
-            description="nur Sechser zählen"
-            cell={gameState.upper.sixes}
-            onValueChange={(value) => updateCell('upper', 'sixes', { value })}
-            onStruckChange={(struck) => updateCell('upper', 'sixes', { struck })}
-          />
-
-          <div className="space-y-2 pt-2">
-            <SectionTotal label="Gesamt" value={upperSum} />
-            <SectionTotal label="Bonus (bei ≥73)" value={upperBonus} highlighted={upperBonus > 0} />
-            <SectionTotal label="Gesamt oberer Teil" value={upperTotal} highlighted />
-          </div>
-        </section>
-
-        {/* Lower Section */}
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-foreground px-2">Unterer Teil</h2>
-          
-          <ScoreInput
-            label="Dreierpasch"
-            description="alle Augen zählen"
-            cell={gameState.lower.threeOfKind}
-            onValueChange={(value) => updateCell('lower', 'threeOfKind', { value })}
-            onStruckChange={(struck) => updateCell('lower', 'threeOfKind', { struck })}
-          />
-          
-          <ScoreInput
-            label="Viererpasch"
-            description="alle Augen zählen"
-            cell={gameState.lower.fourOfKind}
-            onValueChange={(value) => updateCell('lower', 'fourOfKind', { value })}
-            onStruckChange={(struck) => updateCell('lower', 'fourOfKind', { struck })}
-          />
-          
-          <ScoreInput
-            label="Zwei Paare"
-            description="alle Augen zählen"
-            cell={gameState.lower.twoPairs}
-            onValueChange={(value) => updateCell('lower', 'twoPairs', { value })}
-            onStruckChange={(struck) => updateCell('lower', 'twoPairs', { struck })}
-          />
-          
-          <FixedScoreToggle
-            label="Drei Paare"
-            points={FIXED_SCORES.threePairs}
-            cell={gameState.lower.threePairs}
-            onToggle={(achieved) => updateCell('lower', 'threePairs', { value: achieved ? 1 : null })}
-            onStruckChange={(struck) => updateCell('lower', 'threePairs', { struck })}
-          />
-          
-          <FixedScoreToggle
-            label="Zwei Dreier"
-            points={FIXED_SCORES.twoThrees}
-            cell={gameState.lower.twoThrees}
-            onToggle={(achieved) => updateCell('lower', 'twoThrees', { value: achieved ? 1 : null })}
-            onStruckChange={(struck) => updateCell('lower', 'twoThrees', { struck })}
-          />
-          
-          <FixedScoreToggle
-            label="Full-House"
-            points={FIXED_SCORES.fullHouse}
-            cell={gameState.lower.fullHouse}
-            onToggle={(achieved) => updateCell('lower', 'fullHouse', { value: achieved ? 1 : null })}
-            onStruckChange={(struck) => updateCell('lower', 'fullHouse', { struck })}
-          />
-          
-          <FixedScoreToggle
-            label="Großes Full-House"
-            points={FIXED_SCORES.largeFullHouse}
-            cell={gameState.lower.largeFullHouse}
-            onToggle={(achieved) => updateCell('lower', 'largeFullHouse', { value: achieved ? 1 : null })}
-            onStruckChange={(struck) => updateCell('lower', 'largeFullHouse', { struck })}
-          />
-          
-          <FixedScoreToggle
-            label="Kleine Straße"
-            points={FIXED_SCORES.smallStraight}
-            cell={gameState.lower.smallStraight}
-            onToggle={(achieved) => updateCell('lower', 'smallStraight', { value: achieved ? 1 : null })}
-            onStruckChange={(struck) => updateCell('lower', 'smallStraight', { struck })}
-          />
-          
-          <FixedScoreToggle
-            label="Große Straße"
-            points={FIXED_SCORES.largeStraight}
-            cell={gameState.lower.largeStraight}
-            onToggle={(achieved) => updateCell('lower', 'largeStraight', { value: achieved ? 1 : null })}
-            onStruckChange={(struck) => updateCell('lower', 'largeStraight', { struck })}
-          />
-          
-          <FixedScoreToggle
-            label="Highway"
-            points={FIXED_SCORES.highway}
-            cell={gameState.lower.highway}
-            onToggle={(achieved) => updateCell('lower', 'highway', { value: achieved ? 1 : null })}
-            onStruckChange={(struck) => updateCell('lower', 'highway', { struck })}
-          />
-          
-          <FixedScoreToggle
-            label="Kniffel"
-            points={FIXED_SCORES.kniffel}
-            cell={gameState.lower.kniffel}
-            onToggle={(achieved) => updateCell('lower', 'kniffel', { value: achieved ? 1 : null })}
-            onStruckChange={(struck) => updateCell('lower', 'kniffel', { struck })}
-          />
-          
-          <FixedScoreToggle
-            label="Kniffel Extreme"
-            points={FIXED_SCORES.kniffelExtreme}
-            cell={gameState.lower.kniffelExtreme}
-            onToggle={(achieved) => updateCell('lower', 'kniffelExtreme', { value: achieved ? 1 : null })}
-            onStruckChange={(struck) => updateCell('lower', 'kniffelExtreme', { struck })}
-          />
-          
-          <ScoreInput
-            label="10 oder weniger"
-            description="alle Augen zählen"
-            cell={gameState.lower.under10}
-            onValueChange={(value) => updateCell('lower', 'under10', { value })}
-            onStruckChange={(struck) => updateCell('lower', 'under10', { struck })}
-          />
-          
-          <FixedScoreToggle
-            label="33 oder mehr"
-            points={FIXED_SCORES.over33}
-            cell={gameState.lower.over33}
-            onToggle={(achieved) => updateCell('lower', 'over33', { value: achieved ? 1 : null })}
-            onStruckChange={(struck) => updateCell('lower', 'over33', { struck })}
-          />
-          
-          <ScoreInput
-            label="Chance"
-            description="alle Augen zählen"
-            cell={gameState.lower.chance}
-            onValueChange={(value) => updateCell('lower', 'chance', { value })}
-            onStruckChange={(struck) => updateCell('lower', 'chance', { struck })}
-          />
-          
-          <ScoreInput
-            label="Super Chance"
-            description="alle Augen zählen x2"
-            cell={gameState.lower.superChance}
-            onValueChange={(value) => updateCell('lower', 'superChance', { value })}
-            onStruckChange={(struck) => updateCell('lower', 'superChance', { struck })}
-          />
-
-          <div className="space-y-2 pt-2">
-            <SectionTotal label="Gesamt unterer Teil" value={lowerSum} />
-          </div>
-        </section>
-
-        {/* Grand Total */}
-        <section>
-          <SectionTotal label="Endsumme" value={grandTotal} highlighted />
-        </section>
+        </div>
       </main>
     </div>
   );

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { GameState, GameCell, UpperSection, LowerSection } from '@/types/game';
+import { GameState, GameCell, Player } from '@/types/game';
 
 const createEmptyCell = (): GameCell => ({ value: null, struck: false });
 
-const createInitialState = (): GameState => ({
-  playerName: '',
+const createPlayer = (id: string, name: string = ''): Player => ({
+  id,
+  name,
   upper: {
     ones: createEmptyCell(),
     twos: createEmptyCell(),
@@ -33,6 +34,10 @@ const createInitialState = (): GameState => ({
   },
 });
 
+const createInitialState = (): GameState => ({
+  players: [createPlayer('player-1', '')],
+});
+
 export const useGameState = () => {
   const [gameState, setGameState] = useState<GameState>(() => {
     const saved = localStorage.getItem('kniffel-extreme-game');
@@ -44,30 +49,55 @@ export const useGameState = () => {
   }, [gameState]);
 
   const updateCell = (
+    playerId: string,
     section: 'upper' | 'lower',
     field: string,
     updates: Partial<GameCell>
   ) => {
-    setGameState((prev) => {
-      const currentSection = prev[section];
-      const currentCell = currentSection[field as keyof typeof currentSection] as GameCell;
-      
-      return {
-        ...prev,
-        [section]: {
-          ...currentSection,
-          [field]: {
-            value: currentCell.value,
-            struck: currentCell.struck,
-            ...updates,
+    setGameState((prev) => ({
+      ...prev,
+      players: prev.players.map((player) => {
+        if (player.id !== playerId) return player;
+        
+        const currentSection = player[section];
+        const currentCell = currentSection[field as keyof typeof currentSection] as GameCell;
+        
+        return {
+          ...player,
+          [section]: {
+            ...currentSection,
+            [field]: {
+              value: currentCell.value,
+              struck: currentCell.struck,
+              ...updates,
+            },
           },
-        },
-      };
-    });
+        };
+      }),
+    }));
   };
 
-  const updatePlayerName = (name: string) => {
-    setGameState((prev) => ({ ...prev, playerName: name }));
+  const updatePlayerName = (playerId: string, name: string) => {
+    setGameState((prev) => ({
+      ...prev,
+      players: prev.players.map((player) =>
+        player.id === playerId ? { ...player, name } : player
+      ),
+    }));
+  };
+
+  const addPlayer = () => {
+    setGameState((prev) => ({
+      ...prev,
+      players: [...prev.players, createPlayer(`player-${Date.now()}`, '')],
+    }));
+  };
+
+  const removePlayer = (playerId: string) => {
+    setGameState((prev) => ({
+      ...prev,
+      players: prev.players.filter((p) => p.id !== playerId),
+    }));
   };
 
   const resetGame = () => {
@@ -79,6 +109,8 @@ export const useGameState = () => {
     gameState,
     updateCell,
     updatePlayerName,
+    addPlayer,
+    removePlayer,
     resetGame,
   };
 };

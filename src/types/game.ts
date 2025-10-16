@@ -31,10 +31,15 @@ export interface LowerSection {
   superChance: GameCell;
 }
 
-export interface GameState {
-  playerName: string;
+export interface Player {
+  id: string;
+  name: string;
   upper: UpperSection;
   lower: LowerSection;
+}
+
+export interface GameState {
+  players: Player[];
   gameId?: string;
 }
 
@@ -48,5 +53,6 @@ export const FIXED_SCORES = {
   highway: 50,
   kniffel: 50,
   kniffelExtreme: 75,
+  under10: 40,
   over33: 40,
 } as const;

@@ -1,7 +1,7 @@
-import { GameState, FIXED_SCORES } from '@/types/game';
+import { Player, FIXED_SCORES } from '@/types/game';
 
-export const calculateUpperSum = (state: GameState): number => {
-  return Object.values(state.upper).reduce((sum, cell) => {
+export const calculateUpperSum = (player: Player): number => {
+  return Object.values(player.upper).reduce((sum, cell) => {
     if (cell.struck) return sum;
     return sum + (cell.value || 0);
   }, 0);
@@ -11,14 +11,14 @@ export const calculateUpperBonus = (upperSum: number): number => {
   return upperSum >= 73 ? 45 : 0;
 };
 
-export const calculateUpperTotal = (state: GameState): number => {
-  const sum = calculateUpperSum(state);
+export const calculateUpperTotal = (player: Player): number => {
+  const sum = calculateUpperSum(player);
   const bonus = calculateUpperBonus(sum);
   return sum + bonus;
 };
 
-export const calculateLowerSum = (state: GameState): number => {
-  return Object.entries(state.lower).reduce((sum, [key, cell]) => {
+export const calculateLowerSum = (player: Player): number => {
+  return Object.entries(player.lower).reduce((sum, [key, cell]) => {
     if (cell.struck) return sum;
     
     const fixedScore = FIXED_SCORES[key as keyof typeof FIXED_SCORES];
@@ -35,6 +35,6 @@ export const calculateLowerSum = (state: GameState): number => {
   }, 0);
 };
 
-export const calculateGrandTotal = (state: GameState): number => {
-  return calculateUpperTotal(state) + calculateLowerSum(state);
+export const calculateGrandTotal = (player: Player): number => {
+  return calculateUpperTotal(player) + calculateLowerSum(player);
 };
