@@ -17,7 +17,7 @@ interface ShareDialogProps {
   peerId: string;
   connectedPeers: string[];
   isConnecting: boolean;
-  onConnect: (peerId: string) => void;
+  onConnect: (peerId: string) => Promise<void>;
 }
 
 export const ShareDialog = ({
@@ -47,10 +47,22 @@ export const ShareDialog = ({
     }
   };
 
-  const handleConnect = () => {
+  const handleConnect = async () => {
     if (remotePeerId.trim()) {
-      onConnect(remotePeerId.trim());
-      setRemotePeerId('');
+      try {
+        await onConnect(remotePeerId.trim());
+        setRemotePeerId('');
+        toast({
+          title: 'Verbunden!',
+          description: 'Erfolgreich mit Mitspieler verbunden',
+        });
+      } catch (err) {
+        toast({
+          title: 'Verbindungsfehler',
+          description: err instanceof Error ? err.message : 'Konnte nicht verbinden. Prüfe die ID.',
+          variant: 'destructive',
+        });
+      }
     }
   };
 
