@@ -51,14 +51,14 @@ export const ScoreRow = ({
                 onCheckedChange={(checked) => 
                   onUpdate(player.id, section, fieldKey, { value: checked ? 1 : null })
                 }
-                className="h-4 w-4"
+                className="h-5 w-5"
               />
               <span className="text-xs font-bold w-6 text-center">
                 {cell.struck ? '0' : (isAchieved ? fixedPoints : '0')}
               </span>
               <button
                 onClick={() => onUpdate(player.id, section, fieldKey, { struck: !cell.struck })}
-                className={`w-5 h-5 flex items-center justify-center rounded ${cell.struck ? 'bg-destructive/20 text-destructive' : 'bg-muted hover:bg-muted/80'}`}
+                className={`w-6 h-6 flex items-center justify-center rounded ${cell.struck ? 'bg-destructive/20 text-destructive' : 'bg-muted hover:bg-muted/80'}`}
                 title="Strike"
               >
                 <X className="w-3 h-3" />
@@ -83,7 +83,7 @@ export const ScoreRow = ({
             />
             <button
               onClick={() => onUpdate(player.id, section, fieldKey, { struck: !cell.struck })}
-              className={`w-5 h-5 flex items-center justify-center rounded ${cell.struck ? 'bg-destructive/20 text-destructive' : 'bg-muted hover:bg-muted/80'}`}
+              className={`w-6 h-6 flex items-center justify-center rounded ${cell.struck ? 'bg-destructive/20 text-destructive' : 'bg-muted hover:bg-muted/80'}`}
               title="Strike"
             >
               <X className="w-3 h-3" />
