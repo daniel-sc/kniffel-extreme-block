@@ -60,11 +60,11 @@ export const ShareDialog = ({
         <Button
           variant="secondary"
           size="icon"
-          className="bg-white/20 hover:bg-white/30 text-white border-0 relative"
+          className="relative"
         >
           <Users className="w-5 h-5" />
           {connectedPeers.length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-accent text-accent-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+            <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
               {connectedPeers.length}
             </span>
           )}
