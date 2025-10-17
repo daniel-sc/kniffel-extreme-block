@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GameState, GameCell, Player } from '@/types/game';
+import { GameState, GameCell, Player, CURRENT_VERSION } from '@/types/game';
 
 const createEmptyCell = (): GameCell => ({ value: null, struck: false });
 
@@ -35,13 +35,23 @@ const createPlayer = (id: string, name: string = ''): Player => ({
 });
 
 const createInitialState = (): GameState => ({
+  version: CURRENT_VERSION,
   players: [createPlayer('player-1', '')],
 });
 
 export const useGameState = () => {
   const [gameState, setGameState] = useState<GameState>(() => {
     const saved = localStorage.getItem('kniffel-extreme-game');
-    return saved ? JSON.parse(saved) : createInitialState();
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Check version compatibility
+      if (parsed.version === CURRENT_VERSION) {
+        return parsed;
+      }
+      // Discard incompatible state
+      console.log('Discarding incompatible state version:', parsed.version);
+    }
+    return createInitialState();
   });
 
   useEffect(() => {
@@ -105,8 +115,13 @@ export const useGameState = () => {
     localStorage.removeItem('kniffel-extreme-game');
   };
 
+  const setRemoteGameState = (state: GameState) => {
+    setGameState(state);
+  };
+
   return {
     gameState,
+    setGameState: setRemoteGameState,
     updateCell,
     updatePlayerName,
     addPlayer,

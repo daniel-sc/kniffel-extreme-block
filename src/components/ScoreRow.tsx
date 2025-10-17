@@ -1,6 +1,7 @@
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { GameCell, Player } from '@/types/game';
+import { X } from 'lucide-react';
 
 interface ScoreRowProps {
   label: string;
@@ -25,7 +26,7 @@ export const ScoreRow = ({
 }: ScoreRowProps) => {
   return (
     <div className="grid gap-2" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${players.length}, minmax(80px, 1fr))` }}>
-      <div className="sticky left-0 bg-card border-r border-border px-3 py-2 flex flex-col justify-center">
+      <div className="sticky left-0 bg-card border-r border-border px-3 py-1.5 flex flex-col justify-center z-10">
         <div className="font-medium text-xs">{label}</div>
         {description && (
           <div className="text-[10px] text-muted-foreground">{description}</div>
@@ -43,55 +44,50 @@ export const ScoreRow = ({
         if (isFixed) {
           const isAchieved = cell.value === 1 && !cell.struck;
           return (
-            <div key={player.id} className="flex flex-col gap-1 px-2 py-2 bg-card">
-              <div className="flex items-center justify-center gap-1">
-                <Checkbox
-                  checked={isAchieved}
-                  disabled={cell.struck}
-                  onCheckedChange={(checked) => 
-                    onUpdate(player.id, section, fieldKey, { value: checked ? 1 : null })
-                  }
-                />
-                <span className="text-xs font-bold min-w-[2rem] text-center">
-                  {cell.struck ? '0' : (isAchieved ? fixedPoints : '0')}
-                </span>
-              </div>
-              <div className="flex items-center justify-center gap-1">
-                <Checkbox
-                  checked={cell.struck}
-                  onCheckedChange={(checked) => 
-                    onUpdate(player.id, section, fieldKey, { struck: checked as boolean })
-                  }
-                />
-                <span className="text-[10px] text-muted-foreground">Strike</span>
-              </div>
+            <div key={player.id} className="flex items-center justify-center gap-1 px-2 py-1.5 bg-card">
+              <Checkbox
+                checked={isAchieved}
+                disabled={cell.struck}
+                onCheckedChange={(checked) => 
+                  onUpdate(player.id, section, fieldKey, { value: checked ? 1 : null })
+                }
+                className="h-4 w-4"
+              />
+              <span className="text-xs font-bold w-6 text-center">
+                {cell.struck ? '0' : (isAchieved ? fixedPoints : '0')}
+              </span>
+              <button
+                onClick={() => onUpdate(player.id, section, fieldKey, { struck: !cell.struck })}
+                className={`w-5 h-5 flex items-center justify-center rounded ${cell.struck ? 'bg-destructive/20 text-destructive' : 'bg-muted hover:bg-muted/80'}`}
+                title="Strike"
+              >
+                <X className="w-3 h-3" />
+              </button>
             </div>
           );
         }
 
         return (
-          <div key={player.id} className="flex flex-col gap-1 px-2 py-2 bg-card">
+          <div key={player.id} className="flex items-center justify-center gap-1 px-2 py-1.5 bg-card">
             <Input
               type="number"
               min="0"
-              max="999"
+              max="99"
               value={cell.struck ? '0' : (cell.value ?? '')}
               onChange={(e) => {
                 const val = e.target.value === '' ? null : parseInt(e.target.value);
                 onUpdate(player.id, section, fieldKey, { value: val });
               }}
               disabled={cell.struck}
-              className="h-7 text-center text-sm font-bold px-1"
+              className="h-6 w-10 text-center text-xs font-bold px-1"
             />
-            <div className="flex items-center justify-center gap-1">
-              <Checkbox
-                checked={cell.struck}
-                onCheckedChange={(checked) => 
-                  onUpdate(player.id, section, fieldKey, { struck: checked as boolean })
-                }
-              />
-              <span className="text-[10px] text-muted-foreground">Strike</span>
-            </div>
+            <button
+              onClick={() => onUpdate(player.id, section, fieldKey, { struck: !cell.struck })}
+              className={`w-5 h-5 flex items-center justify-center rounded ${cell.struck ? 'bg-destructive/20 text-destructive' : 'bg-muted hover:bg-muted/80'}`}
+              title="Strike"
+            >
+              <X className="w-3 h-3" />
+            </button>
           </div>
         );
       })}

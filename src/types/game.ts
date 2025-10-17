@@ -39,9 +39,12 @@ export interface Player {
 }
 
 export interface GameState {
+  version: number;
   players: Player[];
   gameId?: string;
 }
+
+export const CURRENT_VERSION = 1;
 
 export const FIXED_SCORES = {
   threePairs: 35,

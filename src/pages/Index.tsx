@@ -17,12 +17,11 @@ import {
 import { Dices, RotateCcw, Plus, X } from 'lucide-react';
 
 const Index = () => {
-  const { gameState, updateCell, updatePlayerName, addPlayer, removePlayer, resetGame } = useGameState();
+  const { gameState, setGameState, updateCell, updatePlayerName, addPlayer, removePlayer, resetGame } = useGameState();
 
   // Peer sync
   const handleRemoteUpdate = (remoteState: GameState) => {
-    // This would need more sophisticated merging logic for multiplayer
-    // For now, we'll keep it simple
+    setGameState(remoteState);
   };
 
   const { peerId, connectedPeers, isConnecting, connectToPeer, broadcastState } = 
@@ -33,7 +32,7 @@ const Index = () => {
     if (connectedPeers.length > 0) {
       broadcastState(gameState);
     }
-  }, [gameState]);
+  }, [gameState, connectedPeers.length, broadcastState]);
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -70,48 +69,50 @@ const Index = () => {
       </header>
 
       <main className="container max-w-full mx-auto px-2 py-4">
-        {/* Player Names Header */}
-        <div className="mb-4 overflow-x-auto">
-          <div className="grid gap-2 min-w-max" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
-            <div className="sticky left-0 bg-card border border-border rounded-lg px-3 py-2 font-bold text-sm">
-              Spieler
-            </div>
-            {gameState.players.map((player) => (
-              <div key={player.id} className="relative bg-card border border-border rounded-lg px-2 py-2">
-                <Input
-                  value={player.name}
-                  onChange={(e) => updatePlayerName(player.id, e.target.value)}
-                  placeholder={`Spieler ${gameState.players.indexOf(player) + 1}`}
-                  className="h-7 text-sm text-center font-medium pr-6"
-                />
-                {gameState.players.length > 1 && (
-                  <button
-                    onClick={() => removePlayer(player.id)}
-                    className="absolute top-1 right-1 w-5 h-5 flex items-center justify-center rounded-full bg-destructive/10 hover:bg-destructive/20 text-destructive"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-          <Button
-            onClick={addPlayer}
-            variant="outline"
-            size="sm"
-            className="mt-2 w-full"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Spieler hinzufügen
-          </Button>
-        </div>
-
         {/* Score Table */}
         <div className="bg-card rounded-lg border border-border overflow-x-auto">
           <div className="min-w-max">
+            {/* Player Names Header - Sticky */}
+            <div className="sticky top-0 z-20 bg-card border-b-2 border-border">
+              <div className="grid gap-2 py-2" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
+                <div className="sticky left-0 bg-card px-3 py-1 font-bold text-xs z-10">
+                  Spieler
+                </div>
+                {gameState.players.map((player) => (
+                  <div key={player.id} className="relative px-2">
+                    <Input
+                      value={player.name}
+                      onChange={(e) => updatePlayerName(player.id, e.target.value)}
+                      placeholder={`Spieler ${gameState.players.indexOf(player) + 1}`}
+                      className="h-7 text-xs text-center font-medium pr-6"
+                    />
+                    {gameState.players.length > 1 && (
+                      <button
+                        onClick={() => removePlayer(player.id)}
+                        className="absolute top-0 right-2 w-5 h-5 flex items-center justify-center rounded-full bg-destructive/10 hover:bg-destructive/20 text-destructive"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="px-2 pb-2">
+                <Button
+                  onClick={addPlayer}
+                  variant="outline"
+                  size="sm"
+                  className="w-full h-7 text-xs"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Spieler hinzufügen
+                </Button>
+              </div>
+            </div>
+
             {/* Upper Section */}
             <div className="border-b-2 border-border pb-2">
-              <div className="bg-muted/50 px-3 py-2 font-bold text-sm sticky left-0">
+              <div className="bg-muted/50 px-3 py-2 font-bold text-sm sticky left-0 z-10">
                 Oberer Teil
               </div>
               <ScoreRow label="Einser" description="nur Einser" players={gameState.players} fieldKey="ones" section="upper" onUpdate={updateCell} />
@@ -128,7 +129,7 @@ const Index = () => {
 
             {/* Lower Section */}
             <div className="pt-2">
-              <div className="bg-muted/50 px-3 py-2 font-bold text-sm sticky left-0">
+              <div className="bg-muted/50 px-3 py-2 font-bold text-sm sticky left-0 z-10">
                 Unterer Teil
               </div>
               <ScoreRow label="Dreierpasch" description="alle Augen" players={gameState.players} fieldKey="threeOfKind" section="lower" onUpdate={updateCell} />
