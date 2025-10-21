@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { GameState } from '@/types/game';
 import Peer, { DataConnection } from 'peerjs';
+import * as React from 'react';
 
 export const usePeerSync = (
   gameState: GameState,
@@ -18,7 +19,7 @@ export const usePeerSync = (
   const peerRef = useRef<Peer | null>(null);
   const connectionsRef = useRef<Map<string, DataConnection>>(new Map());
 
-  useEffect(() => {
+useEffect(() => {
     // Initialize PeerJS
     const peer = new Peer();
     peerRef.current = peer;
@@ -41,7 +42,7 @@ export const usePeerSync = (
       connectionsRef.current.forEach((conn) => conn.close());
       peer.destroy();
     };
-  }, []);
+  });
 
   const setupConnection = (conn: DataConnection) => {
     connectionsRef.current.set(conn.peer, conn);
@@ -50,12 +51,11 @@ export const usePeerSync = (
       console.log('Connected to:', conn.peer);
       setConnectedPeers((prev) => [...new Set([...prev, conn.peer])]);
       setIsConnecting(false);
-      
       // Send current state to new peer
       conn.send({ type: 'sync', state: gameState });
     });
 
-    conn.on('data', (data: any) => {
+    conn.on('data', (data: {type: 'sync', state: GameState}) => {
       if (data.type === 'sync') {
         onRemoteUpdate(data.state);
       }
@@ -76,46 +76,46 @@ export const usePeerSync = (
 
   const connectToPeer = (remotePeerId: string) => {
     if (!peerRef.current) return Promise.reject('Peer not initialized');
-    
+
     setIsConnecting(true);
-    
+
     return new Promise<void>((resolve, reject) => {
       const conn = peerRef.current!.connect(remotePeerId, {
         reliable: true,
       });
-      
+
       connectionsRef.current.set(conn.peer, conn);
-      
+
       // Add timeout for connection
       const timeout = setTimeout(() => {
         setIsConnecting(false);
         connectionsRef.current.delete(conn.peer);
         reject(new Error('Verbindungs-Timeout - Mitspieler nicht erreichbar'));
       }, 10000);
-      
+
       conn.on('open', () => {
         clearTimeout(timeout);
         console.log('Connected to:', conn.peer);
         setConnectedPeers((prev) => [...new Set([...prev, conn.peer])]);
         setIsConnecting(false);
-        
+
         // Send current state to new peer
         conn.send({ type: 'sync', state: gameState });
         resolve();
       });
-      
-      conn.on('data', (data: any) => {
+
+      conn.on('data', (data: {type: 'sync', state: GameState}) => {
         if (data.type === 'sync') {
           onRemoteUpdate(data.state);
         }
       });
-      
+
       conn.on('close', () => {
         console.log('Disconnected from:', conn.peer);
         connectionsRef.current.delete(conn.peer);
         setConnectedPeers((prev) => prev.filter((id) => id !== conn.peer));
       });
-      
+
       conn.on('error', (err) => {
         clearTimeout(timeout);
         console.error('Connection error:', err);

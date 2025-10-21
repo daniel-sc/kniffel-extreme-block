@@ -24,7 +24,7 @@ const Index = () => {
     setGameState(remoteState);
   };
 
-  const { peerId, connectedPeers, isConnecting, connectToPeer, broadcastState } = 
+  const { peerId, connectedPeers, isConnecting, connectToPeer, broadcastState } =
     usePeerSync(gameState, handleRemoteUpdate);
 
   // Broadcast state changes to connected peers
@@ -37,8 +37,8 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-background border-b-4 border-transparent bg-clip-padding shadow-[var(--shadow-elevated)]" 
-        style={{ 
+      <header className="sticky top-0 z-10 bg-background border-b-4 border-transparent bg-clip-padding shadow-[var(--shadow-elevated)]"
+        style={{
           backgroundImage: 'linear-gradient(white, white), linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)))',
           backgroundOrigin: 'border-box',
           backgroundClip: 'padding-box, border-box'
@@ -124,10 +124,14 @@ const Index = () => {
 
             {/* Upper Section */}
             <div className="border-b-2 border-border pb-2">
-              <div className="grid gap-2" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
-                <div className="bg-muted/50 px-3 py-2 font-bold text-sm sticky left-0 z-10 col-span-full">
+              <div className="grid" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
+                <div className="bg-muted px-3 py-2 font-bold text-sm sticky left-0 z-10">
                   Oberer Teil
                 </div>
+              {gameState.players.map(p =>
+              <div key={p.id} className="bg-muted"></div>
+              )}
+
               </div>
               <ScoreRow label="Einser" description="nur Einser" players={gameState.players} fieldKey="ones" section="upper" onUpdate={updateCell} />
               <ScoreRow label="Zweier" description="nur Zweier" players={gameState.players} fieldKey="twos" section="upper" onUpdate={updateCell} />
@@ -135,7 +139,7 @@ const Index = () => {
               <ScoreRow label="Vierer" description="nur Vierer" players={gameState.players} fieldKey="fours" section="upper" onUpdate={updateCell} />
               <ScoreRow label="Fünfer" description="nur Fünfer" players={gameState.players} fieldKey="fives" section="upper" onUpdate={updateCell} />
               <ScoreRow label="Sechser" description="nur Sechser" players={gameState.players} fieldKey="sixes" section="upper" onUpdate={updateCell} />
-              
+
               <TotalRow label="Gesamt" players={gameState.players} getValue={calculateUpperSum} />
               <TotalRow label="Bonus (≥73)" players={gameState.players} getValue={(p) => calculateUpperBonus(calculateUpperSum(p))} />
               <TotalRow label="Gesamt oberer Teil" players={gameState.players} getValue={calculateUpperTotal} highlighted />
@@ -143,10 +147,13 @@ const Index = () => {
 
             {/* Lower Section */}
             <div className="pt-2">
-              <div className="grid gap-2" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
-                <div className="bg-muted/50 px-3 py-2 font-bold text-sm sticky left-0 z-10 col-span-full">
+              <div className="grid" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
+                <div className="bg-muted px-3 py-2 font-bold text-sm sticky left-0 z-10">
                   Unterer Teil
                 </div>
+                {gameState.players.map(p =>
+                <div key={p.id} className="bg-muted"></div>
+                )}
               </div>
               <ScoreRow label="Dreierpasch" description="alle Augen" players={gameState.players} fieldKey="threeOfKind" section="lower" onUpdate={updateCell} />
               <ScoreRow label="Viererpasch" description="alle Augen" players={gameState.players} fieldKey="fourOfKind" section="lower" onUpdate={updateCell} />
@@ -164,7 +171,7 @@ const Index = () => {
               <ScoreRow label="33 oder mehr" players={gameState.players} fieldKey="over33" section="lower" onUpdate={updateCell} isFixed fixedPoints={FIXED_SCORES.over33} />
               <ScoreRow label="Chance" description="alle Augen" players={gameState.players} fieldKey="chance" section="lower" onUpdate={updateCell} />
               <ScoreRow label="Super Chance" description="alle Augen x2" players={gameState.players} fieldKey="superChance" section="lower" onUpdate={updateCell} />
-              
+
               <TotalRow label="Gesamt unterer Teil" players={gameState.players} getValue={calculateLowerSum} />
               <TotalRow label="Endsumme" players={gameState.players} getValue={calculateGrandTotal} highlighted />
             </div>
