@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { GameState } from '@/types/game';
 import Peer, { DataConnection } from 'peerjs';
-import * as React from 'react';
 
 export const usePeerSync = (
   gameState: GameState,
