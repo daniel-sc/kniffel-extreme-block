@@ -37,12 +37,7 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-background border-b-4 border-transparent bg-clip-padding shadow-[var(--shadow-elevated)]"
-        style={{
-          backgroundImage: 'linear-gradient(white, white), linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)))',
-          backgroundOrigin: 'border-box',
-          backgroundClip: 'padding-box, border-box'
-        }}>
+      <header className="sticky top-0 z-10 bg-background border-b-4">
         <div className="container max-w-full mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -68,9 +63,9 @@ const Index = () => {
         </div>
       </header>
 
-      <main className="container max-w-full mx-auto px-2 py-4">
+      <main className="container max-w-full mx-auto px-0 py-4">
         {/* Player Names Management */}
-        <div className="bg-card rounded-lg border border-border p-4 mb-4">
+        <div className="bg-card rounded-lg border border-border p-4 mb-4 mx-2">
           <h2 className="text-sm font-bold mb-3">Spieler</h2>
           <div className="space-y-2">
             {gameState.players.map((player, index) => (
@@ -106,10 +101,12 @@ const Index = () => {
         </div>
 
         {/* Score Table */}
-        <div className="bg-card rounded-lg border border-border overflow-x-auto">
-          <div className="min-w-max">
+        <div className="bg-card rounded-lg border border-border">
+            <div className="w-full overflow-x-auto overflow-y-visible">
+          <div className="min-w-max bg-background">
             {/* Player Names Header - Read Only */}
-            <div className="sticky top-0 z-20 bg-card border-b-2 border-border">
+            {/* TODO sticky brokwn */}
+            <div className="sticky top-0 z-30 bg-card border-b-2 border-border">
               <div className="grid gap-2 py-2" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
                 <div className="sticky left-0 bg-card px-3 py-1 font-bold text-xs z-10">
                   Spieler
@@ -123,7 +120,7 @@ const Index = () => {
             </div>
 
             {/* Upper Section */}
-            <div className="border-b-2 border-border pb-2">
+            <div className="border-b-2 border-border pb-2 z-20 relative bg-background">
               <div className="grid" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
                 <div className="bg-muted px-3 py-2 font-bold text-sm sticky left-0 z-10">
                   Oberer Teil
@@ -146,7 +143,7 @@ const Index = () => {
             </div>
 
             {/* Lower Section */}
-            <div className="pt-2">
+            <div className="pt-2 z-20 relative bg-background">
               <div className="grid" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
                 <div className="bg-muted px-3 py-2 font-bold text-sm sticky left-0 z-10">
                   Unterer Teil
@@ -176,6 +173,7 @@ const Index = () => {
               <TotalRow label="Endsumme" players={gameState.players} getValue={calculateGrandTotal} highlighted />
             </div>
           </div>
+            </div>
         </div>
       </main>
     </div>

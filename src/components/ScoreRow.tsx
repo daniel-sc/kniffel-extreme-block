@@ -35,9 +35,9 @@ export const ScoreRow = ({
           <div className="text-[10px] text-primary font-semibold">{fixedPoints} Pkt</div>
         )}
       </div>
-      
+
       {players.map((player) => {
-        const cell = section === 'upper' 
+        const cell = section === 'upper'
           ? player.upper[fieldKey as keyof typeof player.upper] as GameCell
           : player.lower[fieldKey as keyof typeof player.lower] as GameCell;
 
@@ -48,7 +48,7 @@ export const ScoreRow = ({
               <Checkbox
                 checked={isAchieved}
                 disabled={cell.struck}
-                onCheckedChange={(checked) => 
+                onCheckedChange={(checked) =>
                   onUpdate(player.id, section, fieldKey, { value: checked ? 1 : null })
                 }
                 className="h-5 w-5"
@@ -71,6 +71,7 @@ export const ScoreRow = ({
           <div key={player.id} className="flex items-center justify-center gap-1 px-2 py-1.5 bg-card">
             <Input
               type="number"
+              inputMode="numeric"
               min="0"
               max="99"
               value={cell.struck ? '0' : (cell.value ?? '')}

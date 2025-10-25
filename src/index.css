@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here.
 All colors MUST be HSL.
 */
 
@@ -19,7 +19,7 @@ All colors MUST be HSL.
 
     --primary: 150 65% 45%;
     --primary-foreground: 0 0% 100%;
-    
+
     --primary-glow: 150 70% 55%;
 
     --secondary: 210 15% 94%;
@@ -39,7 +39,7 @@ All colors MUST be HSL.
     --ring: 150 65% 45%;
 
     --radius: 0.75rem;
-    
+
     --gradient-primary: linear-gradient(135deg, hsl(150 65% 45%), hsl(180 70% 50%));
     --gradient-accent: linear-gradient(135deg, hsl(25 95% 53%), hsl(35 100% 60%));
     --shadow-card: 0 2px 8px hsla(215 25% 15% / 0.08);
@@ -74,7 +74,7 @@ All colors MUST be HSL.
 
     --primary: 150 65% 50%;
     --primary-foreground: 0 0% 100%;
-    
+
     --primary-glow: 150 70% 60%;
 
     --secondary: 215 20% 20%;
@@ -92,7 +92,7 @@ All colors MUST be HSL.
     --border: 215 20% 22%;
     --input: 215 20% 22%;
     --ring: 150 65% 50%;
-    
+
     --gradient-primary: linear-gradient(135deg, hsl(150 65% 45%), hsl(180 70% 50%));
     --gradient-accent: linear-gradient(135deg, hsl(25 95% 53%), hsl(35 100% 60%));
     --shadow-card: 0 2px 8px hsla(0 0% 0% / 0.3);
@@ -116,4 +116,9 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
   }
+}
+
+
+input[type=number] {
+    -moz-appearance: textfield; /* hide spinner in firefox */
 }
