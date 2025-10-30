@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { ScoreRow } from '@/components/ScoreRow';
 import { TotalRow } from '@/components/TotalRow';
 import { ShareDialog } from '@/components/ShareDialog';
+import { ShareNutsAboutStatsButton } from '@/components/ShareNutsAboutStatsButton';
 import { useGameState } from '@/hooks/useGameState';
 import { usePeerSync } from '@/hooks/usePeerSync';
 import { FIXED_SCORES, GameState } from '@/types/game';
@@ -51,6 +52,7 @@ const Index = () => {
                 isConnecting={isConnecting}
                 onConnect={connectToPeer}
               />
+              <ShareNutsAboutStatsButton />
               <Button
                 variant="secondary"
                 size="icon"

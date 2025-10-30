@@ -9,6 +9,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+    allowedHosts: true // for sharing via pinggy.io
   },
   plugins: [
     react(),
