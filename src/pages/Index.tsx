@@ -130,7 +130,7 @@ const Index = () => {
         {/* Score Table */}
         <div className="bg-card rounded-lg border border-border">
             <div className="w-full overflow-x-auto overflow-y-visible">
-          <div className="min-w-max bg-background">
+          <div className="min-w-min bg-background">
             {/* Player Names Header - Read Only */}
             {/* TODO sticky brokwn */}
             <div className="sticky top-0 z-30 bg-card border-b-2 border-border">
