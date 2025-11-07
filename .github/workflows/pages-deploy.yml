@@ -37,7 +37,7 @@ jobs:
           # The version of Bun to install. (e.g. "latest", "canary", "1.0.0", "1.0.x", <sha>)
           bun-version: 1.3.1
       - name: build
-        run: bun run build
+        run: bun install && bun run build
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
