@@ -97,11 +97,14 @@ export const useGameState = () => {
   };
 
   const addPlayer = () => {
+    const newPlayer = createPlayer(`player-${Date.now()}`, '');
     setGameState((prev) => ({
       ...prev,
-      players: [...prev.players, createPlayer(`player-${Date.now()}`, '')],
+      players: [...prev.players, newPlayer],
     }));
+    return newPlayer.id;
   };
+
 
   const removePlayer = (playerId: string) => {
     setGameState((prev) => ({

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScoreRow } from '@/components/ScoreRow';
@@ -19,6 +19,15 @@ import { Dices, RotateCcw, Plus, X } from 'lucide-react';
 
 const Index = () => {
   const { gameState, setGameState, updateCell, updatePlayerName, addPlayer, removePlayer, resetGame } = useGameState();
+  const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const lastAddedPlayerId = useRef<string | null>(null);
+
+  const handleAddPlayer = () => {
+    const newPlayerId = addPlayer();
+    if (newPlayerId) {
+      lastAddedPlayerId.current = newPlayerId;
+    }
+  };
 
   // Peer sync
   const handleRemoteUpdate = (remoteState: GameState) => {
@@ -34,6 +43,15 @@ const Index = () => {
       broadcastState(gameState);
     }
   }, [gameState, connectedPeers.length, broadcastState]);
+
+  useEffect(() => {
+    if (!lastAddedPlayerId.current) return;
+    const newInput = inputRefs.current[lastAddedPlayerId.current];
+    if (newInput) {
+      newInput.focus();
+      lastAddedPlayerId.current = null;
+    }
+  }, [gameState.players]);
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -77,6 +95,13 @@ const Index = () => {
                   onChange={(e) => updatePlayerName(player.id, e.target.value)}
                   placeholder={`Spieler ${index + 1}`}
                   className="h-9 text-sm flex-1"
+                  ref={(el) => {
+                    if (el) {
+                      inputRefs.current[player.id] = el;
+                    } else {
+                      delete inputRefs.current[player.id];
+                    }
+                  }}
                 />
                 {gameState.players.length > 1 && (
                   <Button
@@ -91,7 +116,7 @@ const Index = () => {
               </div>
             ))}
             <Button
-              onClick={addPlayer}
+              onClick={handleAddPlayer}
               variant="outline"
               size="sm"
               className="w-full"
