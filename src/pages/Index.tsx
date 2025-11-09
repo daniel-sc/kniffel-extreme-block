@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import { useElementSize } from '@/hooks/useElementSize';
 import { Input } from '@/components/ui/input';
 import { ScoreRow } from '@/components/ScoreRow';
 import { TotalRow } from '@/components/TotalRow';
@@ -21,6 +22,9 @@ const Index = () => {
   const { gameState, setGameState, updateCell, updatePlayerName, addPlayer, removePlayer, resetGame } = useGameState();
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const lastAddedPlayerId = useRef<string | null>(null);
+  const { ref: headerRef, size: headerSize } = useElementSize<HTMLDivElement>();
+  const headerOffset = headerSize.height || 88;
+  const pageStyles = { paddingTop: headerOffset,   'overflow-y': 'auto', 'overflow-x': 'visible' };
 
   const handleAddPlayer = () => {
     const newPlayerId = addPlayer();
@@ -54,9 +58,9 @@ const Index = () => {
   }, [gameState.players]);
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="h-screen bg-background relative" style={pageStyles}>
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-background border-b-4">
+      <header ref={headerRef} className="fixed top-0 left-0 right-0 z-10 bg-background border-b-4 shadow-md">
         <div className="container max-w-full mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -128,13 +132,14 @@ const Index = () => {
         </div>
 
         {/* Score Table */}
-        <div className="bg-card rounded-lg border border-border">
-            <div className="w-full overflow-x-auto overflow-y-visible">
-          <div className="min-w-min bg-background">
-            {/* Player Names Header - Read Only */}
-            {/* TODO sticky brokwn */}
-            <div className="sticky top-0 z-30 bg-card border-b-2 border-border">
-              <div className="grid gap-2 py-2" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
+        {/* optimally, only this table would scroll horizontally, but this is not possible as sticky does not respect specific axis! */}
+        <div className="bg-card rounded-lg border border-border z-20 relative">
+            <div className="min-w-min bg-background">
+              {/* Player Names Header - Read Only */}
+
+              <div className="sticky z-30 bg-card border-b-2 border-border shadow-sm" style={{top: `-${headerOffset}px`}}>
+                <div className="grid gap-2 py-2" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
+
                 <div className="sticky left-0 bg-card px-3 py-1 font-bold text-xs z-10">
                   Spieler
                 </div>
@@ -147,7 +152,7 @@ const Index = () => {
             </div>
 
             {/* Upper Section */}
-            <div className="border-b-2 border-border pb-2 z-20 relative bg-background">
+            <div className="border-b-2 border-border pb-2 z-20 bg-background">
               <div className="grid" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
                 <div className="bg-muted px-3 py-2 font-bold text-sm sticky left-0 z-10">
                   Oberer Teil
@@ -170,7 +175,7 @@ const Index = () => {
             </div>
 
             {/* Lower Section */}
-            <div className="pt-2 z-20 relative bg-background">
+            <div className="pt-2 z-20 bg-background">
               <div className="grid" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
                 <div className="bg-muted px-3 py-2 font-bold text-sm sticky left-0 z-10">
                   Unterer Teil
@@ -200,8 +205,7 @@ const Index = () => {
               <TotalRow label="Endsumme" players={gameState.players} getValue={calculateGrandTotal} highlighted />
             </div>
           </div>
-            </div>
-        </div>
+      </div>
       </main>
     </div>
   );
