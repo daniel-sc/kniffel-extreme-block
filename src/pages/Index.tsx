@@ -58,7 +58,7 @@ const Index = () => {
   }, [gameState.players]);
 
   return (
-    <div className="h-screen bg-background relative" style={pageStyles}>
+    <div className="h-svh bg-background relative" style={pageStyles}>
       {/* Header */}
       <header ref={headerRef} className="fixed top-0 left-0 right-0 z-10 bg-background border-b-4 shadow-md">
         <div className="container max-w-full mx-auto px-4 py-4">
@@ -144,7 +144,7 @@ const Index = () => {
                   Spieler
                 </div>
                 {gameState.players.map((player, index) => (
-                  <div key={player.id} className="px-2 text-center text-xs font-medium truncate">
+                  <div key={player.id} className="px-2 text-center text-xs font-medium z-10 truncate">
                     {player.name || `Spieler ${index + 1}`}
                   </div>
                 ))}
@@ -171,7 +171,7 @@ const Index = () => {
 
               <TotalRow label="Gesamt" players={gameState.players} getValue={calculateUpperSum} />
               <TotalRow label="Bonus (≥73)" players={gameState.players} getValue={(p) => calculateUpperBonus(calculateUpperSum(p))} />
-              <TotalRow label="Gesamt oberer Teil" players={gameState.players} getValue={calculateUpperTotal} highlighted />
+              <TotalRow label="Gesamt oberer Teil" players={gameState.players} getValue={calculateUpperTotal} />
             </div>
 
             {/* Lower Section */}
@@ -202,7 +202,7 @@ const Index = () => {
               <ScoreRow label="Super Chance" description="alle Augen x2" players={gameState.players} fieldKey="superChance" section="lower" onUpdate={updateCell} />
 
               <TotalRow label="Gesamt unterer Teil" players={gameState.players} getValue={calculateLowerSum} />
-              <TotalRow label="Endsumme" players={gameState.players} getValue={calculateGrandTotal} highlighted />
+              <TotalRow label="Endsumme" players={gameState.players} getValue={calculateGrandTotal} highlighted stickyBottom />
             </div>
           </div>
       </div>
