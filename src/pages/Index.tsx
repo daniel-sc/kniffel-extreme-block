@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { useElementSize } from '@/hooks/useElementSize';
 import { Input } from '@/components/ui/input';
@@ -14,17 +15,152 @@ import {
   calculateUpperBonus,
   calculateUpperTotal,
   calculateLowerSum,
+
   calculateGrandTotal,
 } from '@/utils/scoreCalculations';
-import { Dices, RotateCcw, Plus, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Dices, RotateCcw, Plus, X, RefreshCcw } from 'lucide-react';
+
 
 const Index = () => {
-  const { gameState, setGameState, updateCell, updatePlayerName, addPlayer, removePlayer, resetGame } = useGameState();
+  const { gameState, setGameState, updateCell, updatePlayerName, addPlayer, removePlayer, resetGame, revancheGame } = useGameState();
+
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const lastAddedPlayerId = useRef<string | null>(null);
   const { ref: headerRef, size: headerSize } = useElementSize<HTMLDivElement>();
   const headerOffset = headerSize.height || 88;
   const pageStyles = { paddingTop: headerOffset,   'overflow-y': 'auto', 'overflow-x': 'visible' };
+
+  const [isRevancheVisible, setIsRevancheVisible] = useState(false);
+  const revancheContainerClasses = cn(
+    'absolute right-0 top-full mt-2 z-20 transition-all duration-200',
+    'opacity-0 translate-y-1 scale-95 pointer-events-none',
+    isRevancheVisible && 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
+  );
+
+
+  const longPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hideRevancheTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggeredRef = useRef(false);
+
+  const clearLongPressTimeout = () => {
+    if (longPressTimeoutRef.current) {
+      clearTimeout(longPressTimeoutRef.current);
+      longPressTimeoutRef.current = null;
+    }
+  };
+
+  const clearHideTimeout = () => {
+    if (hideRevancheTimeoutRef.current) {
+      clearTimeout(hideRevancheTimeoutRef.current);
+      hideRevancheTimeoutRef.current = null;
+    }
+  };
+
+  const showRevanche = () => {
+    clearHideTimeout();
+    setIsRevancheVisible(true);
+  };
+
+  const hideRevanche = (delay: number = 200) => {
+    clearHideTimeout();
+    if (delay <= 0) {
+      setIsRevancheVisible(false);
+      return;
+    }
+
+    hideRevancheTimeoutRef.current = setTimeout(() => {
+      setIsRevancheVisible(false);
+      hideRevancheTimeoutRef.current = null;
+    }, delay);
+  };
+
+  const revealRevancheButton = () => {
+    showRevanche();
+    hideRevanche(4000);
+  };
+
+  const handleResetPointerEnter = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === 'mouse') {
+      showRevanche();
+    }
+  };
+
+  const handleResetPointerLeave = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === 'mouse') {
+      hideRevanche();
+    }
+    clearLongPressTimeout();
+  };
+
+  const handleResetFocus = () => {
+    showRevanche();
+  };
+
+  const handleResetBlur = () => {
+    hideRevanche();
+  };
+
+  const handleResetPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === 'mouse') {
+      return;
+    }
+
+    longPressTriggeredRef.current = false;
+    clearLongPressTimeout();
+    longPressTimeoutRef.current = setTimeout(() => {
+      longPressTriggeredRef.current = true;
+      revealRevancheButton();
+    }, 600);
+  };
+
+  const handleResetPointerEnd = () => {
+    clearLongPressTimeout();
+  };
+
+  const handleRevanchePointerEnter = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === 'mouse') {
+      showRevanche();
+    }
+  };
+
+  const handleRevanchePointerLeave = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === 'mouse') {
+      hideRevanche();
+    }
+  };
+
+  const handleRevancheFocus = () => {
+    showRevanche();
+  };
+
+  const handleRevancheBlur = () => {
+    hideRevanche();
+  };
+
+  const handleResetClick = () => {
+    if (longPressTriggeredRef.current) {
+      longPressTriggeredRef.current = false;
+      return;
+    }
+
+    hideRevanche(0);
+    resetGame();
+  };
+
+  const handleRevancheClick = () => {
+    revancheGame();
+    hideRevanche(0);
+    longPressTriggeredRef.current = false;
+  };
+
+  useEffect(() => {
+    return () => {
+      clearLongPressTimeout();
+      clearHideTimeout();
+    };
+  }, []);
+
 
   const handleAddPlayer = () => {
     const newPlayerId = addPlayer();
@@ -34,6 +170,7 @@ const Index = () => {
   };
 
   // Peer sync
+
   const handleRemoteUpdate = (remoteState: GameState) => {
     setGameState(remoteState);
   };
@@ -67,7 +204,7 @@ const Index = () => {
               <Dices className="w-8 h-8 text-primary" />
               <h1 className="text-xl font-bold text-foreground">Kniffel Extreme</h1>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center relative">
               <ShareDialog
                 peerId={peerId}
                 connectedPeers={connectedPeers}
@@ -75,17 +212,44 @@ const Index = () => {
                 onConnect={connectToPeer}
               />
               <ShareNutsAboutStatsButton />
-              <Button
-                variant="secondary"
-                size="icon"
-                onClick={resetGame}
-              >
-                <RotateCcw className="w-5 h-5" />
-              </Button>
+              <div className="relative">
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  onClick={handleResetClick}
+                  onPointerDown={handleResetPointerDown}
+                  onPointerUp={handleResetPointerEnd}
+                  onPointerLeave={handleResetPointerLeave}
+                  onPointerCancel={handleResetPointerEnd}
+                  onPointerEnter={handleResetPointerEnter}
+                  onFocus={handleResetFocus}
+                  onBlur={handleResetBlur}
+                  aria-label="Spiel zurücksetzen"
+                >
+                  <RotateCcw className="w-5 h-5" />
+                </Button>
+                <div className={revancheContainerClasses}>
+                  <Button
+                    variant="outline"
+                    onClick={handleRevancheClick}
+                    className="min-w-[130px] justify-center shadow-lg"
+                    onPointerEnter={handleRevanchePointerEnter}
+                    onPointerLeave={handleRevanchePointerLeave}
+                    onFocus={handleRevancheFocus}
+                    onBlur={handleRevancheBlur}
+                    tabIndex={isRevancheVisible ? 0 : -1}
+                    aria-hidden={!isRevancheVisible}
+                  >
+                    <RefreshCcw className="w-4 h-4" />
+                    Revanche
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </header>
+
 
       <main className="container max-w-full mx-auto px-0 py-4">
         {/* Player Names Management */}

@@ -118,17 +118,36 @@ export const useGameState = () => {
     localStorage.removeItem('kniffel-extreme-game');
   };
 
-  const setRemoteGameState = (state: GameState) => {
-    setGameState(state);
-  };
+  const revancheGame = () => {
+    setGameState((prev) => {
+      const reversedPlayers = [...prev.players].reverse();
+      const timestamp = Date.now();
+      const players = reversedPlayers.length
+        ? reversedPlayers.map((player, index) =>
+            createPlayer(`player-${timestamp + index}`, player.name)
+          )
+        : createInitialState().players;
 
-  return {
-    gameState,
-    setGameState: setRemoteGameState,
-    updateCell,
-    updatePlayerName,
-    addPlayer,
-    removePlayer,
-    resetGame,
+      return {
+        version: CURRENT_VERSION,
+        players,
+      };
+    });
   };
-};
+ 
+   const setRemoteGameState = (state: GameState) => {
+     setGameState(state);
+   };
+ 
+   return {
+     gameState,
+     setGameState: setRemoteGameState,
+     updateCell,
+     updatePlayerName,
+     addPlayer,
+     removePlayer,
+     resetGame,
+     revancheGame,
+   };
+ };
+
