@@ -229,20 +229,20 @@ const Index = () => {
                   <RotateCcw className="w-5 h-5" />
                 </Button>
                 <div className={revancheContainerClasses}>
-                  <Button
-                    variant="outline"
-                    onClick={handleRevancheClick}
-                    className="min-w-[130px] justify-center shadow-lg"
-                    onPointerEnter={handleRevanchePointerEnter}
-                    onPointerLeave={handleRevanchePointerLeave}
-                    onFocus={handleRevancheFocus}
-                    onBlur={handleRevancheBlur}
-                    tabIndex={isRevancheVisible ? 0 : -1}
-                    aria-hidden={!isRevancheVisible}
-                  >
-                    <RefreshCcw className="w-4 h-4" />
-                    Revanche
-                  </Button>
+                    <Button
+                      variant="outline"
+                      onClick={handleRevancheClick}
+                      className="min-w-[130px] justify-center shadow-lg select-none"
+                      onPointerEnter={handleRevanchePointerEnter}
+                      onPointerLeave={handleRevanchePointerLeave}
+                      onFocus={handleRevancheFocus}
+                      onBlur={handleRevancheBlur}
+                      tabIndex={isRevancheVisible ? 0 : -1}
+                      aria-hidden={!isRevancheVisible}
+                    >
+                      <RefreshCcw className="w-4 h-4" />
+                      Revanche
+                    </Button>
                 </div>
               </div>
             </div>
