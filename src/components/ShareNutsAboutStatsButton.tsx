@@ -80,6 +80,7 @@ export const ShareNutsAboutStatsButton: React.FC = () => {
     try {
       // Prepare payload
       const payload = {
+        game: 'Kniffel Extreme (Sniper)',
         players: getPlayerNames(),
         Bonus: getBonus(),
         Points: getPoints(),
