@@ -1,8 +1,21 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useGameState } from '@/hooks/useGameState';
+import { useShareSettings } from '@/hooks/useShareSettings';
+import { useTouchLongPress } from '@/hooks/useTouchLongPress';
 import { calculateUpperSum, calculateUpperBonus, calculateGrandTotal } from '@/utils/scoreCalculations';
+import { cn } from '@/lib/utils';
 
 /**
  * Apple-style share icon SVG (box + arrow)
@@ -20,6 +33,113 @@ export const ShareNutsAboutStatsButton: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [canShareFiles, setCanShareFiles] = useState<boolean | null>(null);
   const [showTooltip, setShowTooltip] = useState(false);
+  const { shareSettings, updateShareSettings } = useShareSettings();
+  const [isSettingsDialogOpen, setIsSettingsDialogOpen] = useState(false);
+  const [tempGameName, setTempGameName] = useState(shareSettings.gameName);
+  const [isSettingsActionVisible, setIsSettingsActionVisible] = useState(false);
+  const hideSettingsTimeoutRef = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    if (!isSettingsDialogOpen) {
+      setTempGameName(shareSettings.gameName);
+    }
+  }, [isSettingsDialogOpen, shareSettings.gameName]);
+
+  const openShareSettingsDialog = React.useCallback(() => {
+    setTempGameName(shareSettings.gameName);
+    setIsSettingsDialogOpen(true);
+  }, [shareSettings.gameName]);
+
+  const clearHideSettingsTimeout = React.useCallback(() => {
+    if (hideSettingsTimeoutRef.current) {
+      window.clearTimeout(hideSettingsTimeoutRef.current);
+      hideSettingsTimeoutRef.current = null;
+    }
+  }, []);
+
+  const showSettingsAction = React.useCallback(() => {
+    clearHideSettingsTimeout();
+    setIsSettingsActionVisible(true);
+  }, [clearHideSettingsTimeout]);
+
+  const hideSettingsAction = React.useCallback(
+    (delay: number = 200) => {
+      clearHideSettingsTimeout();
+      if (delay <= 0) {
+        setIsSettingsActionVisible(false);
+        return;
+      }
+
+      hideSettingsTimeoutRef.current = window.setTimeout(() => {
+        setIsSettingsActionVisible(false);
+        hideSettingsTimeoutRef.current = null;
+      }, delay);
+    },
+    [clearHideSettingsTimeout]
+  );
+
+  const revealShareSettingsButton = React.useCallback(() => {
+    showSettingsAction();
+    hideSettingsAction(4000);
+  }, [showSettingsAction, hideSettingsAction]);
+
+  React.useEffect(() => {
+    if (isSettingsDialogOpen) {
+      hideSettingsAction(0);
+    }
+  }, [isSettingsDialogOpen, hideSettingsAction]);
+
+  React.useEffect(() => {
+    return () => {
+      clearHideSettingsTimeout();
+    };
+  }, [clearHideSettingsTimeout]);
+
+
+  const {
+    handlePointerDown: handleShareLongPressPointerDown,
+    handlePointerUp: handleShareLongPressPointerUp,
+    handlePointerLeave: handleShareLongPressPointerLeave,
+    handlePointerCancel: handleShareLongPressPointerCancel,
+    handlePointerEnter: handleShareLongPressPointerEnter,
+    shouldHandleClick: shouldHandleShareButtonClick,
+  } = useTouchLongPress(revealShareSettingsButton);
+
+  const handleShareSettingsOpenChange = (open: boolean) => {
+    setIsSettingsDialogOpen(open);
+  };
+
+  const handleShareSettingsSave = () => {
+    const trimmed = tempGameName.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    updateShareSettings({ gameName: trimmed });
+    setTempGameName(trimmed);
+    setIsSettingsDialogOpen(false);
+  };
+
+  const handleShareButtonClick = () => {
+    if (!shouldHandleShareButtonClick()) {
+      return;
+    }
+
+    hideSettingsAction(0);
+    handleShare();
+  };
+
+  const handleShareSettingsButtonClick = () => {
+    openShareSettingsDialog();
+    hideSettingsAction(0);
+  };
+
+  const isSaveDisabled = tempGameName.trim().length === 0;
+  const settingsButtonClasses = cn(
+    'absolute right-0 top-full mt-2 z-50 transition-all duration-200',
+    'opacity-0 translate-y-1 scale-95 pointer-events-none',
+    isSettingsActionVisible && 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
+  );
 
   // On mount, check for Web Share API file support
   React.useEffect(() => {
@@ -80,7 +200,7 @@ export const ShareNutsAboutStatsButton: React.FC = () => {
     try {
       // Prepare payload
       const payload = {
-        game: 'Kniffel Extreme (Sniper)',
+        game: shareSettings.gameName,
         players: getPlayerNames(),
         Bonus: getBonus(),
         Points: getPoints(),
@@ -125,7 +245,12 @@ export const ShareNutsAboutStatsButton: React.FC = () => {
       <Button
         variant="secondary"
         size="icon"
-        onClick={handleShare}
+        onClick={handleShareButtonClick}
+        onPointerDown={handleShareLongPressPointerDown}
+        onPointerUp={handleShareLongPressPointerUp}
+        onPointerLeave={handleShareLongPressPointerLeave}
+        onPointerCancel={handleShareLongPressPointerCancel}
+        onPointerEnter={handleShareLongPressPointerEnter}
         disabled={loading || canShareFiles === false}
         title="Mit Nuts About Stats teilen"
         className="relative"
@@ -149,12 +274,54 @@ export const ShareNutsAboutStatsButton: React.FC = () => {
           </span>
         )}
       </Button>
+      <div className={settingsButtonClasses}>
+        <Button
+          variant="outline"
+          onClick={handleShareSettingsButtonClick}
+          className="min-w-[150px] justify-center shadow-lg select-none"
+          onPointerEnter={() => showSettingsAction()}
+          onPointerLeave={() => hideSettingsAction()}
+          onFocus={showSettingsAction}
+          onBlur={() => hideSettingsAction()}
+          tabIndex={isSettingsActionVisible ? 0 : -1}
+          aria-hidden={!isSettingsActionVisible}
+        >
+          Share-Einstellungen
+        </Button>
+      </div>
       {/* Tooltip for unsupported browsers */}
       {showTooltip && (
         <span className="absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50 text-xs text-muted-foreground bg-background px-3 py-2 rounded shadow border border-border whitespace-nowrap">
           {tooltipText}
         </span>
       )}
+      <Dialog open={isSettingsDialogOpen} onOpenChange={handleShareSettingsOpenChange}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Share-Einstellungen</DialogTitle>
+            <DialogDescription>
+              Passe den Spielnamen an, der im Export verwendet wird.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="share-settings-game-name">Spielname</Label>
+            <Input
+              id="share-settings-game-name"
+              value={tempGameName}
+              onChange={(event) => setTempGameName(event.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => handleShareSettingsOpenChange(false)}>
+              Abbrechen
+            </Button>
+            <Button onClick={handleShareSettingsSave} disabled={isSaveDisabled}>
+              Speichern
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

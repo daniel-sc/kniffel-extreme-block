@@ -9,6 +9,7 @@ import { ShareDialog } from '@/components/ShareDialog';
 import { ShareNutsAboutStatsButton } from '@/components/ShareNutsAboutStatsButton';
 import { useGameState } from '@/hooks/useGameState';
 import { usePeerSync } from '@/hooks/usePeerSync';
+import { useTouchLongPress } from '@/hooks/useTouchLongPress';
 import { FIXED_SCORES, GameState } from '@/types/game';
 import {
   calculateUpperSum,
@@ -21,9 +22,9 @@ import {
 import { cn } from '@/lib/utils';
 import { Dices, RotateCcw, Plus, X, RefreshCcw } from 'lucide-react';
 
-
 const Index = () => {
   const { gameState, setGameState, updateCell, updatePlayerName, addPlayer, removePlayer, resetGame, revancheGame } = useGameState();
+
 
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const lastAddedPlayerId = useRef<string | null>(null);
@@ -39,16 +40,7 @@ const Index = () => {
   );
 
 
-  const longPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hideRevancheTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressTriggeredRef = useRef(false);
-
-  const clearLongPressTimeout = () => {
-    if (longPressTimeoutRef.current) {
-      clearTimeout(longPressTimeoutRef.current);
-      longPressTimeoutRef.current = null;
-    }
-  };
 
   const clearHideTimeout = () => {
     if (hideRevancheTimeoutRef.current) {
@@ -61,6 +53,7 @@ const Index = () => {
     clearHideTimeout();
     setIsRevancheVisible(true);
   };
+
 
   const hideRevanche = (delay: number = 200) => {
     clearHideTimeout();
@@ -80,17 +73,29 @@ const Index = () => {
     hideRevanche(4000);
   };
 
+  const {
+    handlePointerDown: handleResetLongPressPointerDown,
+    handlePointerUp: handleResetLongPressPointerUp,
+    handlePointerLeave: handleResetLongPressPointerLeave,
+    handlePointerCancel: handleResetLongPressPointerCancel,
+    handlePointerEnter: handleResetLongPressPointerEnter,
+    shouldHandleClick: shouldHandleResetClick,
+    resetLongPress: resetResetLongPress,
+  } = useTouchLongPress(revealRevancheButton);
+
   const handleResetPointerEnter = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.pointerType === 'mouse') {
       showRevanche();
     }
+    handleResetLongPressPointerEnter(event);
   };
+
 
   const handleResetPointerLeave = (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.pointerType === 'mouse') {
       hideRevanche();
     }
-    clearLongPressTimeout();
+    handleResetLongPressPointerLeave();
   };
 
   const handleResetFocus = () => {
@@ -106,16 +111,15 @@ const Index = () => {
       return;
     }
 
-    longPressTriggeredRef.current = false;
-    clearLongPressTimeout();
-    longPressTimeoutRef.current = setTimeout(() => {
-      longPressTriggeredRef.current = true;
-      revealRevancheButton();
-    }, 600);
+    handleResetLongPressPointerDown(event);
   };
 
   const handleResetPointerEnd = () => {
-    clearLongPressTimeout();
+    handleResetLongPressPointerUp();
+  };
+
+  const handleResetPointerCancel = () => {
+    handleResetLongPressPointerCancel();
   };
 
   const handleRevanchePointerEnter = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -139,8 +143,7 @@ const Index = () => {
   };
 
   const handleResetClick = () => {
-    if (longPressTriggeredRef.current) {
-      longPressTriggeredRef.current = false;
+    if (!shouldHandleResetClick()) {
       return;
     }
 
@@ -151,12 +154,11 @@ const Index = () => {
   const handleRevancheClick = () => {
     revancheGame();
     hideRevanche(0);
-    longPressTriggeredRef.current = false;
+    resetResetLongPress();
   };
 
   useEffect(() => {
     return () => {
-      clearLongPressTimeout();
       clearHideTimeout();
     };
   }, []);
@@ -220,11 +222,12 @@ const Index = () => {
                   onPointerDown={handleResetPointerDown}
                   onPointerUp={handleResetPointerEnd}
                   onPointerLeave={handleResetPointerLeave}
-                  onPointerCancel={handleResetPointerEnd}
+                  onPointerCancel={handleResetPointerCancel}
                   onPointerEnter={handleResetPointerEnter}
                   onFocus={handleResetFocus}
                   onBlur={handleResetBlur}
                   aria-label="Spiel zurücksetzen"
+
                 >
                   <RotateCcw className="w-5 h-5" />
                 </Button>
