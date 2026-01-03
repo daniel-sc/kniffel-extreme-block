@@ -213,7 +213,8 @@ const Index = () => {
                 isConnecting={isConnecting}
                 onConnect={connectToPeer}
               />
-              <ShareNutsAboutStatsButton />
+              <ShareNutsAboutStatsButton gameState={gameState} />
+
               <div className="relative">
                 <Button
                   variant="secondary"

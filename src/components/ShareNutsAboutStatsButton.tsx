@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useGameState } from '@/hooks/useGameState';
+import type { GameState } from '@/types/game';
 import { useShareSettings } from '@/hooks/useShareSettings';
 import { useTouchLongPress } from '@/hooks/useTouchLongPress';
 import { calculateUpperSum, calculateUpperBonus, calculateGrandTotal } from '@/utils/scoreCalculations';
@@ -27,8 +27,11 @@ const AppleShareIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-export const ShareNutsAboutStatsButton: React.FC = () => {
-  const { gameState } = useGameState();
+interface ShareNutsAboutStatsButtonProps {
+  gameState: GameState;
+}
+
+export const ShareNutsAboutStatsButton: React.FC<ShareNutsAboutStatsButtonProps> = ({ gameState }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [canShareFiles, setCanShareFiles] = useState<boolean | null>(null);
@@ -215,12 +218,13 @@ export const ShareNutsAboutStatsButton: React.FC = () => {
       });
       // Check share support
       if (navigator.canShare?.({ files: [file] })) {
-          console.log('Sharing file via Web Share API:', file);
+          console.log('Sharing file via Web Share API:', file, payload);
         await navigator.share({
           files: [file],
           title: 'Nuts About Stats Transfer',
         });
       } else {
+        console.warn('failed to share data', payload);
         setError('Share not supported on this browser');
       }
     } catch (e) {
