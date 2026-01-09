@@ -41,7 +41,8 @@ useEffect(() => {
       connectionsRef.current.forEach((conn) => conn.close());
       peer.destroy();
     };
-  });
+  }, []);
+
 
   const setupConnection = (conn: DataConnection) => {
     connectionsRef.current.set(conn.peer, conn);
