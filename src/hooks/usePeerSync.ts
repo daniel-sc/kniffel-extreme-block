@@ -253,25 +253,31 @@ export const usePeerSync = (
     const storedPeers = readStoredPeers();
     initPeer(storedPeerId, storedPeers);
 
+    const connections = connectionsRef.current;
+    const peer = peerRef.current;
+
     return () => {
-      connectionsRef.current.forEach((conn) => conn.close());
-      peerRef.current?.destroy();
+      connections.forEach((conn) => conn.close());
+      peer?.destroy();
       setIsPeerReady(false);
       updateConnectingState(false);
     };
-  }, [initPeer]);
+  }, [initPeer, updateConnectingState]);
 
-  const removePeer = useCallback((remotePeerId: string) => {
-    const connection = connectionsRef.current.get(remotePeerId);
-    if (connection) {
-      connection.close();
-    }
-    connectionsRef.current.delete(remotePeerId);
-    connectingPeersRef.current.delete(remotePeerId);
-    updateConnectingState();
-    setConnectedPeers((prev) => prev.filter((id) => id !== remotePeerId));
-    removeStoredPeer(remotePeerId);
-  }, []);
+  const removePeer = useCallback(
+    (remotePeerId: string) => {
+      const connection = connectionsRef.current.get(remotePeerId);
+      if (connection) {
+        connection.close();
+      }
+      connectionsRef.current.delete(remotePeerId);
+      connectingPeersRef.current.delete(remotePeerId);
+      updateConnectingState();
+      setConnectedPeers((prev) => prev.filter((id) => id !== remotePeerId));
+      removeStoredPeer(remotePeerId);
+    },
+    [updateConnectingState]
+  );
 
   const resetPeerId = useCallback(() => {
     connectionsRef.current.forEach((conn) => conn.close());
