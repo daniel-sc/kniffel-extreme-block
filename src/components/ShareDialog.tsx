@@ -10,21 +10,27 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Users, Copy, Check, Loader2 } from 'lucide-react';
+import { Users, Copy, Check, Loader2, RefreshCcw, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 interface ShareDialogProps {
   peerId: string;
   connectedPeers: string[];
   isConnecting: boolean;
+  isReconnecting: boolean;
   onConnect: (peerId: string) => Promise<void>;
+  onRemovePeer: (peerId: string) => void;
+  onResetPeerId: () => void;
 }
 
 export const ShareDialog = ({
   peerId,
   connectedPeers,
   isConnecting,
+  isReconnecting,
   onConnect,
+  onRemovePeer,
+  onResetPeerId,
 }: ShareDialogProps) => {
   const [remotePeerId, setRemotePeerId] = useState('');
   const [copied, setCopied] = useState(false);
@@ -66,6 +72,14 @@ export const ShareDialog = ({
     }
   };
 
+  const handleResetPeerId = () => {
+    onResetPeerId();
+    toast({
+      title: 'Peer-ID zurückgesetzt',
+      description: 'Alle Verbindungen wurden getrennt.',
+    });
+  };
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -75,10 +89,16 @@ export const ShareDialog = ({
           className="relative"
         >
           <Users className="w-5 h-5" />
-          {connectedPeers.length > 0 && (
-            <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-              {connectedPeers.length}
+          {isReconnecting ? (
+            <span className="absolute -top-1 -right-1 bg-secondary text-foreground rounded-full w-5 h-5 flex items-center justify-center">
+              <Loader2 className="w-3 h-3 animate-spin" />
             </span>
+          ) : (
+            connectedPeers.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                {connectedPeers.length}
+              </span>
+            )
           )}
         </Button>
       </DialogTrigger>
@@ -105,6 +125,17 @@ export const ShareDialog = ({
                 {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               </Button>
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full gap-2"
+              onClick={handleResetPeerId}
+              disabled={!peerId}
+            >
+              <RefreshCcw className="h-4 w-4" />
+              ID zurücksetzen
+            </Button>
             <p className="text-xs text-muted-foreground">
               Teile diese ID mit anderen Spielern
             </p>
@@ -143,9 +174,18 @@ export const ShareDialog = ({
                 {connectedPeers.map((id) => (
                   <div
                     key={id}
-                    className="text-xs font-mono bg-secondary px-3 py-2 rounded"
+                    className="flex items-center gap-2 bg-secondary px-3 py-2 rounded"
                   >
-                    {id}
+                    <span className="text-xs font-mono flex-1">{id}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onRemovePeer(id)}
+                      aria-label="Verbindung trennen"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
                   </div>
                 ))}
               </div>

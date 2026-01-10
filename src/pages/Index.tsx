@@ -188,8 +188,16 @@ const Index = () => {
     setGameState(remoteState);
   };
 
-  const { peerId, connectedPeers, isConnecting, connectToPeer, broadcastState } =
-    usePeerSync(gameState, handleRemoteUpdate);
+  const {
+    peerId,
+    connectedPeers,
+    isConnecting,
+    isReconnecting,
+    connectToPeer,
+    removePeer,
+    resetPeerId,
+    broadcastState,
+  } = usePeerSync(gameState, handleRemoteUpdate);
 
   const handleConnectToPeer = (remotePeerId: string) => {
     pendingInitialSyncRef.current = true;
@@ -241,8 +249,10 @@ const Index = () => {
                 peerId={peerId}
                 connectedPeers={connectedPeers}
                 isConnecting={isConnecting}
+                isReconnecting={isReconnecting}
                 onConnect={handleConnectToPeer}
-
+                onRemovePeer={removePeer}
+                onResetPeerId={resetPeerId}
               />
               <ShareNutsAboutStatsButton gameState={gameState} />
 
