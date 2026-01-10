@@ -27,10 +27,13 @@ const Index = () => {
 
 
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const latestGameStateRef = useRef(gameState);
+  const suppressNextBroadcastRef = useRef(false);
+  const pendingInitialSyncRef = useRef(false);
   const lastAddedPlayerId = useRef<string | null>(null);
   const { ref: headerRef, size: headerSize } = useElementSize<HTMLDivElement>();
   const headerOffset = headerSize.height || 88;
-  const pageStyles = { paddingTop: headerOffset,   'overflow-y': 'auto', 'overflow-x': 'visible' };
+  const pageStyles = { paddingTop: headerOffset,   'overflowY': 'auto', 'overflowX': 'visible' };
 
   const [isRevancheVisible, setIsRevancheVisible] = useState(false);
   const revancheContainerClasses = cn(
@@ -174,15 +177,42 @@ const Index = () => {
   // Peer sync
 
   const handleRemoteUpdate = (remoteState: GameState) => {
+    if (pendingInitialSyncRef.current) {
+      pendingInitialSyncRef.current = false;
+    }
+    const currentState = latestGameStateRef.current;
+    if (JSON.stringify(currentState) === JSON.stringify(remoteState)) {
+      return;
+    }
+    suppressNextBroadcastRef.current = true;
     setGameState(remoteState);
   };
 
   const { peerId, connectedPeers, isConnecting, connectToPeer, broadcastState } =
     usePeerSync(gameState, handleRemoteUpdate);
 
+  const handleConnectToPeer = (remotePeerId: string) => {
+    pendingInitialSyncRef.current = true;
+    return connectToPeer(remotePeerId).catch((err) => {
+      pendingInitialSyncRef.current = false;
+      throw err;
+    });
+  };
+
+  useEffect(() => {
+    latestGameStateRef.current = gameState;
+  }, [gameState]);
+
   // Broadcast state changes to connected peers
   useEffect(() => {
     if (connectedPeers.length > 0) {
+      if (pendingInitialSyncRef.current) {
+        return;
+      }
+      if (suppressNextBroadcastRef.current) {
+        suppressNextBroadcastRef.current = false;
+        return;
+      }
       broadcastState(gameState);
     }
   }, [gameState, connectedPeers.length, broadcastState]);
@@ -211,7 +241,8 @@ const Index = () => {
                 peerId={peerId}
                 connectedPeers={connectedPeers}
                 isConnecting={isConnecting}
-                onConnect={connectToPeer}
+                onConnect={handleConnectToPeer}
+
               />
               <ShareNutsAboutStatsButton gameState={gameState} />
 

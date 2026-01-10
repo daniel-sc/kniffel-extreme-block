@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { GameState } from '@/types/game';
 import Peer, { DataConnection } from 'peerjs';
 
@@ -19,8 +19,13 @@ export const usePeerSync = (
   const connectionsRef = useRef<Map<string, DataConnection>>(new Map());
 
 useEffect(() => {
+    console.log('Initializing PeerJS...');
     // Initialize PeerJS
-    const peer = new Peer();
+    const peer = new Peer({
+      config: {
+
+      }
+    });
     peerRef.current = peer;
 
     peer.on('open', (id) => {
@@ -45,6 +50,7 @@ useEffect(() => {
 
 
   const setupConnection = (conn: DataConnection) => {
+    console.log('setupConnection to:', conn.peer);
     connectionsRef.current.set(conn.peer, conn);
 
     conn.on('open', () => {
@@ -99,8 +105,6 @@ useEffect(() => {
         setConnectedPeers((prev) => [...new Set([...prev, conn.peer])]);
         setIsConnecting(false);
 
-        // Send current state to new peer
-        conn.send({ type: 'sync', state: gameState });
         resolve();
       });
 
@@ -127,13 +131,13 @@ useEffect(() => {
     });
   };
 
-  const broadcastState = (state: GameState) => {
+  const broadcastState = useCallback((state: GameState) => {
     connectionsRef.current.forEach((conn) => {
       if (conn.open) {
         conn.send({ type: 'sync', state });
       }
     });
-  };
+  }, []);
 
   return {
     peerId,
