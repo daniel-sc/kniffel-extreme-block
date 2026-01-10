@@ -47,6 +47,17 @@ const removeStoredPeer = (peerId: string) => {
   storePeers(peers);
 };
 
+const readSharedPeerId = () => {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('peer')?.trim() || '';
+};
+
+const clearSharedPeerParam = () => {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('peer');
+  window.history.replaceState({}, '', url.toString());
+};
+
 export const usePeerSync = (
   gameState: GameState,
   onRemoteUpdate: (state: GameState) => void
@@ -69,6 +80,7 @@ export const usePeerSync = (
   const connectionsRef = useRef<Map<string, DataConnection>>(new Map());
   const connectingPeersRef = useRef<Set<string>>(new Set());
   const storedPeersRef = useRef<string[]>([]);
+  const sharedPeerIdRef = useRef<string | null>(null);
   const gameStateRef = useRef(gameState);
   const onRemoteUpdateRef = useRef(onRemoteUpdate);
   const updateConnectingState = useCallback(
@@ -80,6 +92,13 @@ export const usePeerSync = (
     },
     [isPeerReady]
   );
+
+  const clearSharedPeerLink = useCallback((remotePeerId: string) => {
+    if (sharedPeerIdRef.current && sharedPeerIdRef.current === remotePeerId) {
+      clearSharedPeerParam();
+      sharedPeerIdRef.current = null;
+    }
+  }, []);
   useEffect(() => {
     gameStateRef.current = gameState;
   }, [gameState]);
@@ -104,6 +123,8 @@ export const usePeerSync = (
     conn.on('open', () => {
       console.log('Connected to:', conn.peer);
       connectingPeersRef.current.delete(conn.peer);
+      updateConnectingState();
+      clearSharedPeerLink(conn.peer);
       addStoredPeer(conn.peer);
       setConnectedPeers((prev) => [...new Set([...prev, conn.peer])]);
       setIsConnecting(false);
@@ -127,7 +148,7 @@ export const usePeerSync = (
       connectionsRef.current.delete(conn.peer);
       setConnectedPeers((prev) => prev.filter((id) => id !== conn.peer));
     });
-  }, []);
+  }, [clearSharedPeerLink, updateConnectingState]);
 
   const connectToPeer = useCallback(
     (remotePeerId: string, options: { silent?: boolean } = {}) => {
@@ -168,6 +189,7 @@ export const usePeerSync = (
           console.log('Connected to:', conn.peer);
           connectingPeersRef.current.delete(conn.peer);
           updateConnectingState();
+          clearSharedPeerLink(conn.peer);
           addStoredPeer(conn.peer);
           setConnectedPeers((prev) => [...new Set([...prev, conn.peer])]);
           if (!options.silent) {
@@ -204,7 +226,7 @@ export const usePeerSync = (
         });
       });
     },
-    [updateConnectingState]
+    [clearSharedPeerLink, updateConnectingState]
   );
 
   const initPeer = useCallback(
@@ -250,7 +272,14 @@ export const usePeerSync = (
 
   useEffect(() => {
     const storedPeerId = readStoredPeerId();
-    const storedPeers = readStoredPeers();
+    const sharedPeerId = readSharedPeerId();
+    const storedPeers = sharedPeerId ? [sharedPeerId] : readStoredPeers();
+
+    sharedPeerIdRef.current = sharedPeerId || null;
+    if (sharedPeerId) {
+      storePeers([sharedPeerId]);
+    }
+
     initPeer(storedPeerId, storedPeers);
 
     const connections = connectionsRef.current;

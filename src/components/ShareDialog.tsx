@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Users, Copy, Check, Loader2, RefreshCcw, X } from 'lucide-react';
+import { Users, Copy, Check, Loader2, RefreshCcw, X, Share2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
 interface ShareDialogProps {
@@ -48,6 +48,24 @@ export const ShareDialog = ({
       toast({
         title: 'Fehler',
         description: 'ID konnte nicht kopiert werden',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const copyShareLink = async () => {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('peer', peerId);
+      await navigator.clipboard.writeText(url.toString());
+      toast({
+        title: 'Link kopiert!',
+        description: 'Mit diesem Link kann direkt verbunden werden',
+      });
+    } catch (err) {
+      toast({
+        title: 'Fehler',
+        description: 'Link konnte nicht kopiert werden',
         variant: 'destructive',
       });
     }
@@ -123,6 +141,14 @@ export const ShareDialog = ({
                 disabled={!peerId}
               >
                 {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              </Button>
+              <Button
+                type="button"
+                size="icon"
+                onClick={copyShareLink}
+                disabled={!peerId}
+              >
+                <Share2 className="w-4 h-4" />
               </Button>
             </div>
             <Button
