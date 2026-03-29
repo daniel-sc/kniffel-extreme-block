@@ -7,37 +7,61 @@ npm install
 npm run dev
 ```
 
-## Realtime Sync Backend
+## Realtime sync
 
 The app syncs by always propagating the complete game state.
 
-### 1) Configure environment
+This repo now uses Cloudflare's modern PartyKit stack:
 
-Copy `.env.example` to `.env` and set your backend host:
+- `partyserver` for the realtime Durable Object server
+- `partysocket` for the client connection
+- `wrangler` for local worker dev and production deploys
+- one Cloudflare worker for both the SPA and `/parties/kniffel-sync/:room` sync routes
+
+## Local setup
+
+### 1) Configure optional split-host dev env
+
+Copy `.env.example` to `.env` if you want the Vite frontend to talk to a separate local worker:
 
 ```sh
 cp .env.example .env
 ```
 
-Required variables:
+Available variables:
 
-- `VITE_PARTYKIT_HOST` — deployed sync backend host (for example `kniffel-extreme-sync.<account>.partykit.dev`)
-- `VITE_PARTYKIT_PARTY` — optional party name, defaults to `kniffel-sync`
+- `VITE_SYNC_HOST` - optional sync host override, for example `localhost:8787`
+- `VITE_SYNC_PARTY` - optional party name, defaults to `kniffel-sync`
 
-### 2) Run sync backend locally
+The client still falls back to legacy `VITE_PARTYKIT_HOST` and `VITE_PARTYKIT_PARTY` values if you already have them configured.
 
-```sh
-npm run partykit:dev
-```
-
-### 3) Deploy sync backend to Cloudflare
+### 2) Run the local sync worker
 
 ```sh
-npx partykit login
-npm run partykit:deploy
+npm run sync:dev
 ```
 
-The PartyKit config uses compatibility date `2026-03-29` (updated to latest stable at implementation time).
+### 3) Run the frontend dev server
+
+```sh
+npm run dev
+```
+
+## Deploy to Cloudflare
+
+```sh
+CLOUDFLARE_ACCOUNT_ID=<your-account-id> \
+CLOUDFLARE_API_TOKEN=<your-api-token> \
+npm run deploy
+```
+
+`wrangler.jsonc` deploys a single worker that:
+
+- serves the built Vite app from `./dist`
+- routes realtime websocket traffic through `partyserver`
+- stores room state in a Durable Object class named `KniffelSyncServer`
+
+`wrangler.sync-dev.jsonc` is the local worker config used by `npm run sync:dev`.
 
 ## Stable room behavior
 
@@ -48,28 +72,18 @@ The PartyKit config uses compatibility date `2026-03-29` (updated to latest stab
 - Presence and latest state are maintained with Cloudflare hibernation.
 - If a room has no interaction for seven days, a cleanup alarm removes persisted room state.
 
-## Client deployment via Cloudflare Workers static assets
+## GitHub Actions deploys
 
-The client is deployed as static assets through Workers (`wrangler deploy`) using `wrangler.jsonc` and `assets.directory = "./dist"`.
+`.github/workflows/pages-deploy.yml` deploys the unified worker for two stable environments:
 
-## GitHub Actions: Cloudflare deploy on push
-
-`.github/workflows/pages-deploy.yml` deploys backend + frontend for two stable environments:
-
-- `main` branch → `production` environment
-- non-`main` branches → shared `staging` environment
-
-Both environments deploy server first, then client static assets via Workers.
+- `main` branch -> `production`
+- non-`main` branches -> shared `staging`
 
 Required repository secrets:
 
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
-- `PARTYKIT_TOKEN`
-- `PARTYKIT_NAME_PROD`
-- `PARTYKIT_NAME_STAGING`
-- `VITE_PARTYKIT_HOST_PROD`
-- `VITE_PARTYKIT_HOST_STAGING`
-- `VITE_PARTYKIT_PARTY`
 - `WORKER_NAME_PROD`
 - `WORKER_NAME_STAGING`
+
+If you previously deployed sync through legacy PartyKit cloud-prem, note that this migration creates a new Durable Object class/namespace, so existing room state will not carry over.

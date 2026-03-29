@@ -38,8 +38,8 @@ const clearSharedRoomParam = () => {
   window.history.replaceState({}, '', url.toString());
 };
 
-const getPartyHost = () => {
-  const configured = import.meta.env.VITE_PARTYKIT_HOST as string | undefined;
+const getSyncHost = () => {
+  const configured = import.meta.env.VITE_SYNC_HOST ?? import.meta.env.VITE_PARTYKIT_HOST;
   if (configured && configured.trim().length > 0) {
     return configured.trim();
   }
@@ -48,7 +48,7 @@ const getPartyHost = () => {
 };
 
 const getPartyName = () => {
-  const configured = import.meta.env.VITE_PARTYKIT_PARTY as string | undefined;
+  const configured = import.meta.env.VITE_SYNC_PARTY ?? import.meta.env.VITE_PARTYKIT_PARTY;
   return configured?.trim() || DEFAULT_PARTY_NAME;
 };
 
@@ -109,7 +109,7 @@ export const usePeerSync = (
         }, 10000);
 
         const socket = new PartySocket({
-          host: getPartyHost(),
+          host: getSyncHost(),
           room: nextRoomId,
           party: getPartyName(),
         });
@@ -126,7 +126,7 @@ export const usePeerSync = (
 
         socket.addEventListener('message', (event) => {
           try {
-            const message = JSON.parse(String(event.data)) as SyncMessage;
+            const message = JSON.parse(String(event.data)) as SyncMessage<GameState>;
             if (message.type === 'sync') {
               onRemoteUpdateRef.current(message.state);
             }
@@ -134,7 +134,7 @@ export const usePeerSync = (
               setConnectedPeers(message.peers);
             }
           } catch (error) {
-            console.warn('Invalid PartyKit message:', error);
+            console.warn('Invalid sync message:', error);
           }
         });
 
