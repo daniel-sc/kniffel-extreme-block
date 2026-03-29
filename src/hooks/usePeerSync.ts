@@ -71,16 +71,27 @@ export const usePeerSync = (
   const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
   const socketRef = useRef<PartySocket | null>(null);
   const onRemoteUpdateRef = useRef(onRemoteUpdate);
+  const roomIdRef = useRef(roomId);
+  const isConnectedRef = useRef(isConnected);
 
   useEffect(() => {
     onRemoteUpdateRef.current = onRemoteUpdate;
   }, [onRemoteUpdate]);
+
+  useEffect(() => {
+    roomIdRef.current = roomId;
+  }, [roomId]);
+
+  useEffect(() => {
+    isConnectedRef.current = isConnected;
+  }, [isConnected]);
 
   const closeSocket = useCallback(() => {
     if (socketRef.current) {
       socketRef.current.close();
       socketRef.current = null;
     }
+    isConnectedRef.current = false;
     setIsConnected(false);
     setIsConnecting(false);
     setConnectedPeers([]);
@@ -93,12 +104,13 @@ export const usePeerSync = (
         throw new Error('Bitte eine gültige Raum-ID eingeben.');
       }
 
-      if (socketRef.current && roomId === nextRoomId && isConnected) {
+      if (socketRef.current && roomIdRef.current === nextRoomId && isConnectedRef.current) {
         return;
       }
 
       closeSocket();
       setIsConnecting(true);
+      roomIdRef.current = nextRoomId;
       setRoomId(nextRoomId);
       storeRoomId(nextRoomId);
 
@@ -119,6 +131,7 @@ export const usePeerSync = (
         socket.addEventListener('open', () => {
           window.clearTimeout(timeout);
           setIsConnecting(false);
+          isConnectedRef.current = true;
           setIsConnected(true);
           socket.send(JSON.stringify({ type: 'request-sync' } satisfies SyncMessage));
           resolve();
@@ -139,6 +152,7 @@ export const usePeerSync = (
         });
 
         socket.addEventListener('close', () => {
+          isConnectedRef.current = false;
           setIsConnected(false);
         });
 
@@ -149,7 +163,7 @@ export const usePeerSync = (
         });
       });
     },
-    [closeSocket, isConnected, roomId],
+    [closeSocket],
   );
 
   useEffect(() => {
