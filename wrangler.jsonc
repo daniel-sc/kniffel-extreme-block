@@ -49,7 +49,7 @@
     "staging": {
       "name": "kniffel-extreme-block-staging",
       "route": {
-        "pattern": "test.kniffel.schreiber-lang.de",
+        "pattern": "test-kniffel.schreiber-lang.de",
         "custom_domain": true
       },
       "durable_objects": {
