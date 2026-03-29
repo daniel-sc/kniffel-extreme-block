@@ -1,0 +1,5 @@
+{
+  "name": "kniffel-extreme-sync",
+  "main": "partykit/server.ts",
+  "compatibilityDate": "2025-03-01"
+}

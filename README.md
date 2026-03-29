@@ -1,73 +1,55 @@
-# Welcome to your Lovable project
+# Kniffel Extreme Block
 
-## Project info
-
-**URL**: https://lovable.dev/projects/d5933237-2e07-41da-8db3-5259feb345ad
-
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/d5933237-2e07-41da-8db3-5259feb345ad) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Development
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Multiplayer Sync (PartyKit)
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+This project uses PartyKit instead of PeerJS and always propagates the full game state.
 
-**Use GitHub Codespaces**
+### 1) Configure environment
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Copy `.env.example` to `.env` and set your PartyKit host:
 
-## What technologies are used for this project?
+```sh
+cp .env.example .env
+```
 
-This project is built with:
+Required variables:
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- `VITE_PARTYKIT_HOST` — your deployed PartyKit host (for example `kniffel-extreme-sync.<account>.partykit.dev`)
+- `VITE_PARTYKIT_PARTY` — optional party name, defaults to `kniffel-sync`
 
-## How can I deploy this project?
+### 2) Run PartyKit locally
 
-Simply open [Lovable](https://lovable.dev/projects/d5933237-2e07-41da-8db3-5259feb345ad) and click on Share -> Publish.
+```sh
+npm run partykit:dev
+```
 
-## Can I connect a custom domain to my Lovable project?
+### 3) Deploy PartyKit to Cloudflare
 
-Yes, you can!
+1. Authenticate once:
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+```sh
+npx partykit login
+```
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+2. Deploy the PartyKit server configured in `partykit.json`:
+
+```sh
+npm run partykit:deploy
+```
+
+3. Put the resulting deployment hostname into `VITE_PARTYKIT_HOST` and redeploy the frontend.
+
+## Stable room behavior
+
+- Each client/device stores a stable room ID in local storage and reuses it indefinitely.
+- Shared links (`?room=<id>`) switch to that same stable room.
+- Game reset/revanche actions keep the same room and only push updated full state.
+- PartyKit server stores the latest full state in room storage and syncs it to newcomers.
+- Presence and latest state are maintained with connection hibernation enabled.

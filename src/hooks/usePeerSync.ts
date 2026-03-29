@@ -1,104 +1,82 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import PartySocket from 'partysocket';
 import { GameState } from '@/types/game';
-import Peer, { DataConnection } from 'peerjs';
 
-const PEER_ID_STORAGE_KEY = 'kniffel-extreme-peer-id';
-const PEER_LIST_STORAGE_KEY = 'kniffel-extreme-peer-peers';
+const ROOM_ID_STORAGE_KEY = 'kniffel-extreme-sync-room-id';
+const ROOM_PARAM_KEY = 'room';
+const DEFAULT_PARTY_NAME = 'kniffel-sync';
 
-const uniquePeers = (peers: string[]) => Array.from(new Set(peers.filter(Boolean)));
-
-const readStoredPeerId = () => localStorage.getItem(PEER_ID_STORAGE_KEY) || '';
-
-const readStoredPeers = (): string[] => {
-  try {
-    const stored = localStorage.getItem(PEER_LIST_STORAGE_KEY);
-    if (!stored) return [];
-    const parsed = JSON.parse(stored);
-    if (!Array.isArray(parsed)) return [];
-    return uniquePeers(parsed.filter((value) => typeof value === 'string'));
-  } catch {
-    return [];
+const generateRoomId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
   }
+
+  return `room-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 };
 
-const storePeerId = (id: string) => {
-  localStorage.setItem(PEER_ID_STORAGE_KEY, id);
+const readStoredRoomId = () => {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(ROOM_ID_STORAGE_KEY) || '';
 };
 
-const clearStoredPeerId = () => {
-  localStorage.removeItem(PEER_ID_STORAGE_KEY);
+const storeRoomId = (roomId: string) => {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(ROOM_ID_STORAGE_KEY, roomId);
 };
 
-const storePeers = (peers: string[]) => {
-  localStorage.setItem(PEER_LIST_STORAGE_KEY, JSON.stringify(uniquePeers(peers)));
-};
-
-const addStoredPeer = (peerId: string) => {
-  if (!peerId) return;
-  const peers = readStoredPeers();
-  if (!peers.includes(peerId)) {
-    storePeers([...peers, peerId]);
-  }
-};
-
-const removeStoredPeer = (peerId: string) => {
-  if (!peerId) return;
-  const peers = readStoredPeers().filter((id) => id !== peerId);
-  storePeers(peers);
-};
-
-const readSharedPeerId = () => {
+const readSharedRoomId = () => {
+  if (typeof window === 'undefined') return '';
   const params = new URLSearchParams(window.location.search);
-  return params.get('peer')?.trim() || '';
+  return params.get(ROOM_PARAM_KEY)?.trim() || '';
 };
 
-const clearSharedPeerParam = () => {
+const clearSharedRoomParam = () => {
+  if (typeof window === 'undefined') return;
   const url = new URL(window.location.href);
-  url.searchParams.delete('peer');
+  url.searchParams.delete(ROOM_PARAM_KEY);
   window.history.replaceState({}, '', url.toString());
+};
+
+type SyncMessage =
+  | { type: 'sync'; state: GameState }
+  | { type: 'request-sync' }
+  | { type: 'presence'; peers: string[] };
+
+const getPartyHost = () => {
+  const configured = import.meta.env.VITE_PARTYKIT_HOST as string | undefined;
+  if (configured && configured.trim().length > 0) {
+    return configured.trim();
+  }
+
+  return window.location.host;
+};
+
+const getPartyName = () => {
+  const configured = import.meta.env.VITE_PARTYKIT_PARTY as string | undefined;
+  return configured?.trim() || DEFAULT_PARTY_NAME;
 };
 
 export const usePeerSync = (
   gameState: GameState,
-  onRemoteUpdate: (state: GameState) => void
+  onRemoteUpdate: (state: GameState) => void,
 ): {
   peerId: string;
   connectedPeers: string[];
   isConnecting: boolean;
   isReconnecting: boolean;
   connectToPeer: (remotePeerId: string) => Promise<void>;
-  removePeer: (remotePeerId: string) => void;
+  removePeer: () => void;
   resetPeerId: () => void;
   broadcastState: (state: GameState) => void;
 } => {
-  const [peerId, setPeerId] = useState<string>('');
-  const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
+  const [roomId, setRoomId] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isReconnecting, setIsReconnecting] = useState(false);
-  const [isPeerReady, setIsPeerReady] = useState(false);
-  const peerRef = useRef<Peer | null>(null);
-  const connectionsRef = useRef<Map<string, DataConnection>>(new Map());
-  const connectingPeersRef = useRef<Set<string>>(new Set());
-  const storedPeersRef = useRef<string[]>([]);
-  const sharedPeerIdRef = useRef<string | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
+  const socketRef = useRef<PartySocket | null>(null);
   const gameStateRef = useRef(gameState);
   const onRemoteUpdateRef = useRef(onRemoteUpdate);
-  const updateConnectingState = useCallback(
-    (readyOverride?: boolean) => {
-      const ready = readyOverride ?? isPeerReady;
-      const hasPendingPeers =
-        connectingPeersRef.current.size > 0 || storedPeersRef.current.length > 0;
-      setIsReconnecting((!ready && hasPendingPeers) || connectingPeersRef.current.size > 0);
-    },
-    [isPeerReady]
-  );
 
-  const clearSharedPeerLink = useCallback((remotePeerId: string) => {
-    if (sharedPeerIdRef.current && sharedPeerIdRef.current === remotePeerId) {
-      clearSharedPeerParam();
-      sharedPeerIdRef.current = null;
-    }
-  }, []);
   useEffect(() => {
     gameStateRef.current = gameState;
   }, [gameState]);
@@ -107,239 +85,125 @@ export const usePeerSync = (
     onRemoteUpdateRef.current = onRemoteUpdate;
   }, [onRemoteUpdate]);
 
-  const setupConnection = useCallback((conn: DataConnection) => {
-    console.log('setupConnection to:', conn.peer);
-    const existingConnection = connectionsRef.current.get(conn.peer);
-    if (existingConnection?.open || connectingPeersRef.current.has(conn.peer)) {
-      conn.close();
-      return;
+  const closeSocket = useCallback(() => {
+    if (socketRef.current) {
+      socketRef.current.close();
+      socketRef.current = null;
     }
-    if (existingConnection) {
-      connectionsRef.current.delete(conn.peer);
-    }
+    setIsConnected(false);
+    setIsConnecting(false);
+    setConnectedPeers([]);
+  }, []);
 
-    connectionsRef.current.set(conn.peer, conn);
-
-    conn.on('open', () => {
-      console.log('Connected to:', conn.peer);
-      connectingPeersRef.current.delete(conn.peer);
-      updateConnectingState();
-      clearSharedPeerLink(conn.peer);
-      addStoredPeer(conn.peer);
-      setConnectedPeers((prev) => [...new Set([...prev, conn.peer])]);
-      setIsConnecting(false);
-      conn.send({ type: 'sync', state: gameStateRef.current });
-    });
-
-    conn.on('data', (data: { type: 'sync'; state: GameState }) => {
-      if (data.type === 'sync') {
-        onRemoteUpdateRef.current(data.state);
-      }
-    });
-
-    conn.on('close', () => {
-      console.log('Disconnected from:', conn.peer);
-      connectionsRef.current.delete(conn.peer);
-      setConnectedPeers((prev) => prev.filter((id) => id !== conn.peer));
-    });
-
-    conn.on('error', (err) => {
-      console.error('Connection error:', err);
-      connectionsRef.current.delete(conn.peer);
-      setConnectedPeers((prev) => prev.filter((id) => id !== conn.peer));
-    });
-  }, [clearSharedPeerLink, updateConnectingState]);
-
-  const connectToPeer = useCallback(
-    (remotePeerId: string, options: { silent?: boolean } = {}) => {
-      if (!peerRef.current) return Promise.reject('Peer not initialized');
-      if (!remotePeerId) return Promise.resolve();
-      if (remotePeerId === peerRef.current.id) return Promise.resolve();
-
-      const existingConnection = connectionsRef.current.get(remotePeerId);
-      if (existingConnection?.open || connectingPeersRef.current.has(remotePeerId)) {
-        return Promise.resolve();
+  const connectToRoom = useCallback(
+    async (targetRoomId: string) => {
+      const nextRoomId = targetRoomId.trim();
+      if (!nextRoomId) {
+        throw new Error('Bitte eine gültige Raum-ID eingeben.');
       }
 
-      if (!options.silent) {
-        setIsConnecting(true);
+      if (socketRef.current && roomId === nextRoomId && isConnected) {
+        return;
       }
-      connectingPeersRef.current.add(remotePeerId);
-      updateConnectingState();
 
-      return new Promise<void>((resolve, reject) => {
-        const conn = peerRef.current!.connect(remotePeerId, {
-          reliable: true,
-        });
+      closeSocket();
+      setIsConnecting(true);
+      setRoomId(nextRoomId);
+      storeRoomId(nextRoomId);
 
-        connectionsRef.current.set(conn.peer, conn);
-
-        const timeout = setTimeout(() => {
-          if (!options.silent) {
-            setIsConnecting(false);
-          }
-          connectingPeersRef.current.delete(conn.peer);
-          updateConnectingState();
-          connectionsRef.current.delete(conn.peer);
-          reject(new Error('Verbindungs-Timeout - Mitspieler nicht erreichbar'));
+      await new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => {
+          setIsConnecting(false);
+          reject(new Error('Verbindungs-Timeout zum PartyKit-Raum.'));
         }, 10000);
 
-        conn.on('open', () => {
-          clearTimeout(timeout);
-          console.log('Connected to:', conn.peer);
-          connectingPeersRef.current.delete(conn.peer);
-          updateConnectingState();
-          clearSharedPeerLink(conn.peer);
-          addStoredPeer(conn.peer);
-          setConnectedPeers((prev) => [...new Set([...prev, conn.peer])]);
-          if (!options.silent) {
-            setIsConnecting(false);
-          }
+        const socket = new PartySocket({
+          host: getPartyHost(),
+          room: nextRoomId,
+          party: getPartyName(),
+        });
+
+        socketRef.current = socket;
+
+        socket.addEventListener('open', () => {
+          window.clearTimeout(timeout);
+          setIsConnecting(false);
+          setIsConnected(true);
+          socket.send(JSON.stringify({ type: 'request-sync' } satisfies SyncMessage));
           resolve();
         });
 
-        conn.on('data', (data: { type: 'sync'; state: GameState }) => {
-          if (data.type === 'sync') {
-            onRemoteUpdateRef.current(data.state);
+        socket.addEventListener('message', (event) => {
+          try {
+            const message = JSON.parse(String(event.data)) as SyncMessage;
+            if (message.type === 'sync') {
+              onRemoteUpdateRef.current(message.state);
+            }
+            if (message.type === 'presence') {
+              setConnectedPeers(message.peers);
+            }
+          } catch (error) {
+            console.warn('Invalid PartyKit message:', error);
           }
         });
 
-        conn.on('close', () => {
-          console.log('Disconnected from:', conn.peer);
-          connectingPeersRef.current.delete(conn.peer);
-          updateConnectingState();
-          connectionsRef.current.delete(conn.peer);
-          setConnectedPeers((prev) => prev.filter((id) => id !== conn.peer));
+        socket.addEventListener('close', () => {
+          setIsConnected(false);
         });
 
-        conn.on('error', (err) => {
-          clearTimeout(timeout);
-          console.error('Connection error:', err);
-          connectingPeersRef.current.delete(conn.peer);
-          updateConnectingState();
-          connectionsRef.current.delete(conn.peer);
-          setConnectedPeers((prev) => prev.filter((id) => id !== conn.peer));
-          if (!options.silent) {
-            setIsConnecting(false);
-          }
-          reject(err);
+        socket.addEventListener('error', () => {
+          window.clearTimeout(timeout);
+          setIsConnecting(false);
+          reject(new Error('Fehler beim Verbinden mit PartyKit.'));
         });
       });
     },
-    [clearSharedPeerLink, updateConnectingState]
-  );
-
-  const initPeer = useCallback(
-    (requestedPeerId: string, storedPeers: string[]) => {
-      console.log('Initializing PeerJS...');
-      storedPeersRef.current = storedPeers;
-      setIsPeerReady(false);
-      updateConnectingState(false);
-      const peer = requestedPeerId
-        ? new Peer(requestedPeerId, { config: {} })
-        : new Peer({ config: {} });
-      peerRef.current = peer;
-
-      peer.on('open', (id) => {
-        console.log('Peer ID:', id);
-        setPeerId(id);
-        storePeerId(id);
-        setIsPeerReady(true);
-        updateConnectingState(true);
-
-        if (storedPeersRef.current.length > 0) {
-          storedPeersRef.current.forEach((remoteId) => {
-            if (remoteId === id) return;
-            if (connectionsRef.current.get(remoteId)?.open) return;
-            void connectToPeer(remoteId, { silent: true });
-          });
-        }
-      });
-
-      peer.on('connection', (conn) => {
-        setupConnection(conn);
-      });
-
-      peer.on('error', (err) => {
-        console.error('Peer error:', err);
-        setIsPeerReady(false);
-        updateConnectingState(false);
-        setIsConnecting(false);
-      });
-    },
-    [connectToPeer, setupConnection, updateConnectingState]
+    [closeSocket, isConnected, roomId],
   );
 
   useEffect(() => {
-    const storedPeerId = readStoredPeerId();
-    const sharedPeerId = readSharedPeerId();
-    const storedPeers = sharedPeerId ? [sharedPeerId] : readStoredPeers();
+    const sharedRoomId = readSharedRoomId();
+    const storedRoomId = readStoredRoomId();
+    const initialRoomId = sharedRoomId || storedRoomId || generateRoomId();
 
-    sharedPeerIdRef.current = sharedPeerId || null;
-    if (sharedPeerId) {
-      storePeers([sharedPeerId]);
+    if (sharedRoomId) {
+      clearSharedRoomParam();
     }
 
-    initPeer(storedPeerId, storedPeers);
-
-    const connections = connectionsRef.current;
-    const peer = peerRef.current;
+    void connectToRoom(initialRoomId).catch((error) => {
+      console.error('Unable to connect to PartyKit room:', error);
+    });
 
     return () => {
-      connections.forEach((conn) => conn.close());
-      peer?.destroy();
-      setIsPeerReady(false);
-      updateConnectingState(false);
+      closeSocket();
     };
-  }, [initPeer, updateConnectingState]);
-
-  const removePeer = useCallback(
-    (remotePeerId: string) => {
-      const connection = connectionsRef.current.get(remotePeerId);
-      if (connection) {
-        connection.close();
-      }
-      connectionsRef.current.delete(remotePeerId);
-      connectingPeersRef.current.delete(remotePeerId);
-      updateConnectingState();
-      setConnectedPeers((prev) => prev.filter((id) => id !== remotePeerId));
-      removeStoredPeer(remotePeerId);
-    },
-    [updateConnectingState]
-  );
+  }, [closeSocket, connectToRoom]);
 
   const resetPeerId = useCallback(() => {
-    connectionsRef.current.forEach((conn) => conn.close());
-    connectionsRef.current.clear();
-    connectingPeersRef.current.clear();
-    setConnectedPeers([]);
-    setIsConnecting(false);
-    setIsReconnecting(false);
-
-    peerRef.current?.destroy();
-    peerRef.current = null;
-    setPeerId('');
-    clearStoredPeerId();
-    storePeers([]);
-
-    initPeer('', []);
-  }, [initPeer]);
+    const newRoomId = generateRoomId();
+    void connectToRoom(newRoomId).catch((error) => {
+      console.error('Unable to create a new room:', error);
+    });
+  }, [connectToRoom]);
 
   const broadcastState = useCallback((state: GameState) => {
-    connectionsRef.current.forEach((conn) => {
-      if (conn.open) {
-        conn.send({ type: 'sync', state });
-      }
-    });
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    socket.send(JSON.stringify({ type: 'sync', state } satisfies SyncMessage));
   }, []);
 
   return {
-    peerId,
+    peerId: roomId,
     connectedPeers,
     isConnecting,
-    isReconnecting,
-    connectToPeer,
-    removePeer,
+    isReconnecting: false,
+    connectToPeer: connectToRoom,
+    removePeer: () => {
+      closeSocket();
+    },
     resetPeerId,
     broadcastState,
   };
