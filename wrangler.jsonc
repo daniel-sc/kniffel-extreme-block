@@ -24,6 +24,12 @@
       "new_sqlite_classes": ["KniffelSyncServer"]
     }
   ],
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    }
+  },
   "env": {
     "production": {
       "name": "kniffel-extreme-block",
