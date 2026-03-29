@@ -55,11 +55,25 @@ CLOUDFLARE_API_TOKEN=<your-api-token> \
 npm run deploy
 ```
 
+Environment-specific deploys:
+
+```sh
+npm run deploy:production
+npm run deploy:staging
+```
+
 `wrangler.jsonc` deploys a single worker that:
 
 - serves the built Vite app from `./dist`
 - routes realtime websocket traffic through `partyserver`
 - stores room state in a Durable Object class named `KniffelSyncServer`
+
+Custom domains are configured directly in `wrangler.jsonc` per Wrangler environment:
+
+- `production` -> `kniffel.schreiber-lang.de`
+- `staging` -> `test.kniffel.schreiber-lang.de`
+
+That means HTTPS is provisioned by Cloudflare on deploy, instead of relying on manual dashboard routing.
 
 `wrangler.sync-dev.jsonc` is the local worker config used by `npm run sync:dev`.
 
@@ -83,7 +97,5 @@ Required repository secrets:
 
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
-- `WORKER_NAME_PROD`
-- `WORKER_NAME_STAGING`
 
 If you previously deployed sync through legacy PartyKit cloud-prem, note that this migration creates a new Durable Object class/namespace, so existing room state will not carry over.

@@ -35,7 +35,7 @@ jobs:
         run: npm run build
 
       - name: Deploy production worker
-        run: npx wrangler deploy --name "${{ secrets.WORKER_NAME_PROD }}"
+        run: npx wrangler deploy --env production
 
   deploy-staging:
     if: github.ref_name != 'main'
@@ -58,4 +58,4 @@ jobs:
         run: npm run build
 
       - name: Deploy staging worker
-        run: npx wrangler deploy --name "${{ secrets.WORKER_NAME_STAGING }}"
+        run: npx wrangler deploy --env staging
