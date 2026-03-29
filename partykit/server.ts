@@ -1,9 +1,5 @@
 import type * as Party from 'partykit/server';
-
-type SyncMessage =
-  | { type: 'sync'; state: unknown }
-  | { type: 'request-sync' }
-  | { type: 'presence'; peers: string[] };
+import type { SyncMessage } from '../src/types/sync';
 
 const STATE_KEY = 'latest-state';
 

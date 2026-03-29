@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import PartySocket from 'partysocket';
 import { GameState } from '@/types/game';
+import { SyncMessage } from '@/types/sync';
 
 const ROOM_ID_STORAGE_KEY = 'kniffel-extreme-sync-room-id';
 const ROOM_PARAM_KEY = 'room';
@@ -37,11 +38,6 @@ const clearSharedRoomParam = () => {
   window.history.replaceState({}, '', url.toString());
 };
 
-type SyncMessage =
-  | { type: 'sync'; state: GameState }
-  | { type: 'request-sync' }
-  | { type: 'presence'; peers: string[] };
-
 const getPartyHost = () => {
   const configured = import.meta.env.VITE_PARTYKIT_HOST as string | undefined;
   if (configured && configured.trim().length > 0) {
@@ -57,7 +53,7 @@ const getPartyName = () => {
 };
 
 export const usePeerSync = (
-  gameState: GameState,
+  _gameState: GameState,
   onRemoteUpdate: (state: GameState) => void,
 ): {
   peerId: string;
@@ -74,12 +70,7 @@ export const usePeerSync = (
   const [isConnected, setIsConnected] = useState(false);
   const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
   const socketRef = useRef<PartySocket | null>(null);
-  const gameStateRef = useRef(gameState);
   const onRemoteUpdateRef = useRef(onRemoteUpdate);
-
-  useEffect(() => {
-    gameStateRef.current = gameState;
-  }, [gameState]);
 
   useEffect(() => {
     onRemoteUpdateRef.current = onRemoteUpdate;
@@ -114,7 +105,7 @@ export const usePeerSync = (
       await new Promise<void>((resolve, reject) => {
         const timeout = window.setTimeout(() => {
           setIsConnecting(false);
-          reject(new Error('Verbindungs-Timeout zum PartyKit-Raum.'));
+          reject(new Error('Verbindungs-Timeout zum Raum.'));
         }, 10000);
 
         const socket = new PartySocket({
@@ -154,7 +145,7 @@ export const usePeerSync = (
         socket.addEventListener('error', () => {
           window.clearTimeout(timeout);
           setIsConnecting(false);
-          reject(new Error('Fehler beim Verbinden mit PartyKit.'));
+          reject(new Error('Fehler beim Verbinden mit dem Raum.'));
         });
       });
     },
@@ -171,7 +162,7 @@ export const usePeerSync = (
     }
 
     void connectToRoom(initialRoomId).catch((error) => {
-      console.error('Unable to connect to PartyKit room:', error);
+      console.error('Unable to connect to sync room:', error);
     });
 
     return () => {

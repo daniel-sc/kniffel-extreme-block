@@ -75,7 +75,7 @@ export const ShareDialog = ({
       setTargetRoomId('');
       toast({
         title: 'Raum gewechselt',
-        description: 'Du bist jetzt mit dem gewünschten PartyKit-Raum verbunden',
+        description: 'Du bist jetzt mit dem gewünschten Raum verbunden',
       });
     } catch (err) {
       toast({
@@ -116,7 +116,7 @@ export const ShareDialog = ({
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>PartyKit Sync</DialogTitle>
+          <DialogTitle>Live-Synchronisierung</DialogTitle>
           <DialogDescription>
             Nutze einen stabilen Raum für Live-Sync über alle Geräte
           </DialogDescription>
@@ -171,7 +171,7 @@ export const ShareDialog = ({
           </div>
 
           <p className="text-xs text-muted-foreground">
-            💡 Änderungen werden als kompletter Spielzustand in denselben PartyKit-Raum übertragen.
+            💡 Änderungen werden als kompletter Spielzustand in denselben Raum übertragen.
           </p>
         </div>
       </DialogContent>
