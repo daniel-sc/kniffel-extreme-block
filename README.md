@@ -53,15 +53,22 @@ The client is deployed as static assets through Workers (`wrangler deploy`) usin
 
 ## GitHub Actions: Cloudflare deploy on push
 
-`.github/workflows/pages-deploy.yml` deploys backend + frontend on push to `main`:
+`.github/workflows/pages-deploy.yml` deploys backend + frontend for two stable environments:
 
-1. Deploy sync backend with PartyKit.
-2. Build frontend and deploy static assets through Workers.
+- `main` branch → `production` environment
+- non-`main` branches → shared `staging` environment
+
+Both environments deploy server first, then client static assets via Workers.
 
 Required repository secrets:
 
-- `PARTYKIT_TOKEN`
-- `VITE_PARTYKIT_HOST`
-- `VITE_PARTYKIT_PARTY`
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
+- `PARTYKIT_TOKEN`
+- `PARTYKIT_NAME_PROD`
+- `PARTYKIT_NAME_STAGING`
+- `VITE_PARTYKIT_HOST_PROD`
+- `VITE_PARTYKIT_HOST_STAGING`
+- `VITE_PARTYKIT_PARTY`
+- `WORKER_NAME_PROD`
+- `WORKER_NAME_STAGING`
