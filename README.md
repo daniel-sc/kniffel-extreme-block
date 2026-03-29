@@ -46,6 +46,7 @@ The PartyKit config uses compatibility date `2026-03-29` (updated to latest stab
 - Game reset/revanche actions keep the same room and only push updated full state.
 - The server stores the latest full state in room storage and syncs it to newcomers.
 - Presence and latest state are maintained with Cloudflare hibernation.
+- If a room has no interaction for seven days, a cleanup alarm removes persisted room state.
 
 ## Client deployment via Cloudflare Workers static assets
 

@@ -2,6 +2,7 @@ import type * as Party from 'partykit/server';
 import type { SyncMessage } from '../src/types/sync';
 
 const STATE_KEY = 'latest-state';
+const INACTIVITY_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
 
 export default class KniffelSyncServer implements Party.Server {
   constructor(readonly room: Party.Room) {}
@@ -10,6 +11,7 @@ export default class KniffelSyncServer implements Party.Server {
     // Required so all WebSocket connections are restored using Cloudflare hibernation.
     this.room.context.blockConcurrencyWhile(async () => {
       await this.room.storage.get(STATE_KEY);
+      await this.scheduleCleanupAlarm();
     });
   }
 
@@ -22,6 +24,7 @@ export default class KniffelSyncServer implements Party.Server {
     }
 
     this.broadcastPresence();
+    await this.scheduleCleanupAlarm();
   }
 
   async onMessage(message: string, sender: Party.Connection): Promise<void> {
@@ -38,17 +41,33 @@ export default class KniffelSyncServer implements Party.Server {
       if (latestState !== undefined) {
         sender.send(JSON.stringify({ type: 'sync', state: latestState } satisfies SyncMessage));
       }
+      await this.scheduleCleanupAlarm();
       return;
     }
 
     if (payload.type === 'sync') {
       await this.room.storage.put(STATE_KEY, payload.state);
       this.room.broadcast(JSON.stringify(payload));
+      await this.scheduleCleanupAlarm();
     }
   }
 
-  onClose(): void {
+  async onClose(): Promise<void> {
     this.broadcastPresence();
+    await this.scheduleCleanupAlarm();
+  }
+
+  async onAlarm(): Promise<void> {
+    if (this.room.getConnections().length > 0) {
+      await this.scheduleCleanupAlarm();
+      return;
+    }
+
+    await this.room.storage.delete(STATE_KEY);
+  }
+
+  private async scheduleCleanupAlarm() {
+    await this.room.storage.setAlarm(Date.now() + INACTIVITY_TIMEOUT_MS);
   }
 
   private broadcastPresence() {
