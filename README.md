@@ -47,9 +47,16 @@ The PartyKit config uses compatibility date `2026-03-29` (updated to latest stab
 - The server stores the latest full state in room storage and syncs it to newcomers.
 - Presence and latest state are maintained with Cloudflare hibernation.
 
+## Client deployment via Cloudflare Workers static assets
+
+The client is deployed as static assets through Workers (`wrangler deploy`) using `wrangler.jsonc` and `assets.directory = "./dist"`.
+
 ## GitHub Actions: Cloudflare deploy on push
 
-`.github/workflows/pages-deploy.yml` deploys both backend and frontend on push to `master`.
+`.github/workflows/pages-deploy.yml` deploys backend + frontend on push to `main`:
+
+1. Deploy sync backend with PartyKit.
+2. Build frontend and deploy static assets through Workers.
 
 Required repository secrets:
 
@@ -58,4 +65,3 @@ Required repository secrets:
 - `VITE_PARTYKIT_PARTY`
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
-- `CLOUDFLARE_PAGES_PROJECT`
