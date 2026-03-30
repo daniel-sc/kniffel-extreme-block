@@ -133,7 +133,6 @@ export const usePeerSync = (
           setIsConnecting(false);
           isConnectedRef.current = true;
           setIsConnected(true);
-          socket.send(JSON.stringify({ type: 'request-sync' } satisfies SyncMessage));
           resolve();
         });
 

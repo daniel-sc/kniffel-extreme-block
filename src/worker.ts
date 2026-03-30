@@ -42,15 +42,6 @@ export class KniffelSyncServer extends Server<Env> {
       return;
     }
 
-    if (payload.type === 'request-sync') {
-      const latestState = await this.ctx.storage.get<unknown>(STATE_KEY);
-      if (latestState !== undefined) {
-        sender.send(JSON.stringify({ type: 'sync', state: latestState } satisfies SyncMessage));
-      }
-      await this.scheduleCleanupAlarm();
-      return;
-    }
-
     if (payload.type === 'sync') {
       await this.ctx.storage.put(STATE_KEY, payload.state);
       this.broadcast(JSON.stringify(payload));
