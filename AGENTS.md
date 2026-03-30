@@ -2,8 +2,10 @@
 
 ## Build, Lint, and Test Commands
 - **Start dev server:** `bun run dev`
+- **Start local sync worker:** `bun run sync:dev`
 - **Build (prod):** `bun run build`
 - **Build (dev):** `bun run build:dev`
+- **Deploy unified worker:** `bun run deploy`
 - **Lint:** `bun run lint`
 - **Preview build:** `bun run preview`
 - **Testing:** No test script defined; add tests and scripts if needed.
@@ -17,6 +19,7 @@
 - **React:** Use function components. Prefer hooks for state/effects. Follow React Hooks lint rules.
 - **Unused Vars:** Allowed (ESLint disables unused vars rule).
 - **Exports:** Only export React components as default if using react-refresh.
+- **Cloudflare:** Use `wrangler.jsonc` for deployed worker config and `wrangler.sync-dev.jsonc` for local sync worker development.
 - **Tailwind:** Use utility classes, dark mode via `class`.
 - **File Structure:** Organize by feature in `src/components`, `src/hooks`, etc.
 

@@ -1,73 +1,101 @@
-# Welcome to your Lovable project
+# Kniffel Extreme Block
 
-## Project info
-
-**URL**: https://lovable.dev/projects/d5933237-2e07-41da-8db3-5259feb345ad
-
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/d5933237-2e07-41da-8db3-5259feb345ad) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+## Development
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## Realtime sync
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+The app syncs by always propagating the complete game state.
 
-**Use GitHub Codespaces**
+This repo now uses Cloudflare's modern PartyKit stack:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- `partyserver` for the realtime Durable Object server
+- `partysocket` for the client connection
+- `wrangler` for local worker dev and production deploys
+- one Cloudflare worker for both the SPA and `/parties/kniffel-sync/:room` sync routes
 
-## What technologies are used for this project?
+## Local setup
 
-This project is built with:
+### 1) Configure optional split-host dev env
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+Copy `.env.example` to `.env` if you want the Vite frontend to talk to a separate local worker:
 
-## How can I deploy this project?
+```sh
+cp .env.example .env
+```
 
-Simply open [Lovable](https://lovable.dev/projects/d5933237-2e07-41da-8db3-5259feb345ad) and click on Share -> Publish.
+Available variables:
 
-## Can I connect a custom domain to my Lovable project?
+- `VITE_SYNC_HOST` - optional sync host override, for example `localhost:8787`
+- `VITE_SYNC_PARTY` - optional party name, defaults to `kniffel-sync`
 
-Yes, you can!
+The client still falls back to legacy `VITE_PARTYKIT_HOST` and `VITE_PARTYKIT_PARTY` values if you already have them configured.
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### 2) Run the local sync worker
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+```sh
+npm run sync:dev
+```
+
+### 3) Run the frontend dev server
+
+```sh
+npm run dev
+```
+
+## Deploy to Cloudflare
+
+```sh
+CLOUDFLARE_ACCOUNT_ID=<your-account-id> \
+CLOUDFLARE_API_TOKEN=<your-api-token> \
+npm run deploy
+```
+
+Environment-specific deploys:
+
+```sh
+npm run deploy:production
+npm run deploy:staging
+```
+
+`wrangler.jsonc` deploys a single worker that:
+
+- serves the built Vite app from `./dist`
+- routes realtime websocket traffic through `partyserver`
+- stores room state in a Durable Object class named `KniffelSyncServer`
+
+Custom domains are configured directly in `wrangler.jsonc` per Wrangler environment:
+
+- `production` -> `kniffel.schreiber-lang.de`
+- `staging` -> `test-kniffel.schreiber-lang.de`
+
+That means HTTPS is provisioned by Cloudflare on deploy, instead of relying on manual dashboard routing.
+
+`wrangler.sync-dev.jsonc` is the local worker config used by `npm run sync:dev`.
+
+## Stable room behavior
+
+- Each client/device stores a stable room ID in local storage and reuses it indefinitely.
+- Shared links (`?room=<id>`) switch to that same stable room.
+- Game reset/revanche actions keep the same room and only push updated full state.
+- The server stores the latest full state in room storage and syncs it to newcomers.
+- Presence and latest state are maintained with Cloudflare hibernation.
+- If a room has no interaction for seven days, a cleanup alarm removes persisted room state.
+
+## GitHub Actions deploys
+
+`.github/workflows/pages-deploy.yml` deploys the unified worker for two stable environments:
+
+- `main` branch -> `production`
+- non-`main` branches -> shared `staging`
+
+Required repository secrets:
+
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+If you previously deployed sync through legacy PartyKit cloud-prem, note that this migration creates a new Durable Object class/namespace, so existing room state will not carry over.

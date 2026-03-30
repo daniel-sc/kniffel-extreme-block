@@ -192,9 +192,7 @@ const Index = () => {
     peerId,
     connectedPeers,
     isConnecting,
-    isReconnecting,
     connectToPeer,
-    removePeer,
     resetPeerId,
     broadcastState,
   } = usePeerSync(gameState, handleRemoteUpdate);
@@ -246,13 +244,11 @@ const Index = () => {
             </div>
             <div className="flex gap-2 items-center relative">
               <ShareDialog
-                peerId={peerId}
-                connectedPeers={connectedPeers}
+                roomId={peerId}
+                remoteCount={connectedPeers.length}
                 isConnecting={isConnecting}
-                isReconnecting={isReconnecting}
                 onConnect={handleConnectToPeer}
-                onRemovePeer={removePeer}
-                onResetPeerId={resetPeerId}
+                onResetRoomId={resetPeerId}
               />
               <ShareNutsAboutStatsButton gameState={gameState} />
 

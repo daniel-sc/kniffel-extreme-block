@@ -1,0 +1,65 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kniffel-extreme-block",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-03-29",
+  "workers_dev": false,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/parties/*"]
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "KniffelSync",
+        "class_name": "KniffelSyncServer"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["KniffelSyncServer"]
+    }
+  ],
+  "observability": {
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true
+    }
+  },
+  "env": {
+    "production": {
+      "name": "kniffel-extreme-block",
+      "route": {
+        "pattern": "kniffel.schreiber-lang.de",
+        "custom_domain": true
+      },
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "KniffelSync",
+            "class_name": "KniffelSyncServer"
+          }
+        ]
+      }
+    },
+    "staging": {
+      "name": "kniffel-extreme-block-staging",
+      "route": {
+        "pattern": "test-kniffel.schreiber-lang.de",
+        "custom_domain": true
+      },
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "KniffelSync",
+            "class_name": "KniffelSyncServer"
+          }
+        ]
+      }
+    }
+  }
+}
