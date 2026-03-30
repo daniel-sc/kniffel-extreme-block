@@ -5,6 +5,10 @@ import type { SyncMessage } from './types/sync';
 const STATE_KEY = 'latest-state';
 const INACTIVITY_TIMEOUT_MS = 7 * 24 * 60 * 60 * 1000;
 
+interface SyncConnectionState {
+  sessionId: string;
+}
+
 export class KniffelSyncServer extends Server<Env> {
   static options = {
     hibernate: true,
@@ -14,8 +18,10 @@ export class KniffelSyncServer extends Server<Env> {
     await this.scheduleCleanupAlarm();
   }
 
-  async onConnect(connection: Connection): Promise<void> {
-    connection.setState({ id: connection.id });
+  async onConnect(connection: Connection<SyncConnectionState>): Promise<void> {
+    const sessionId = crypto.randomUUID();
+    connection.setState({ sessionId });
+    this.closeStaleConnections(connection, sessionId);
 
     const latestState = await this.ctx.storage.get<unknown>(STATE_KEY);
     if (latestState !== undefined) {
@@ -26,7 +32,7 @@ export class KniffelSyncServer extends Server<Env> {
     await this.scheduleCleanupAlarm();
   }
 
-  async onMessage(sender: Connection, message: WSMessage): Promise<void> {
+  async onMessage(sender: Connection<SyncConnectionState>, message: WSMessage): Promise<void> {
     if (typeof message !== 'string') {
       console.warn('Received non-string message, ignoring.');
       return;
@@ -45,7 +51,7 @@ export class KniffelSyncServer extends Server<Env> {
     }
   }
 
-  async onClose(_connection: Connection): Promise<void> {
+  async onClose(_connection: Connection<SyncConnectionState>): Promise<void> {
     this.broadcastPresence();
     await this.scheduleCleanupAlarm();
   }
@@ -63,15 +69,23 @@ export class KniffelSyncServer extends Server<Env> {
     await this.ctx.storage.setAlarm(Date.now() + INACTIVITY_TIMEOUT_MS);
   }
 
+  private closeStaleConnections(currentConnection: Connection<SyncConnectionState>, sessionId: string) {
+    for (const connection of this.getConnections(currentConnection.id) as Iterable<Connection<SyncConnectionState>>) {
+      if (connection.state?.sessionId !== sessionId) {
+        connection.close(1000, 'Replaced by newer connection');
+      }
+    }
+  }
+
   private broadcastPresence() {
     const connections = Array.from(this.getConnections());
-    const peers = connections.map((connection) => connection.id);
+    const peerIds = [...new Set(connections.map((connection) => connection.id))];
 
     for (const connection of connections) {
       connection.send(
         JSON.stringify({
           type: 'presence',
-          peers: peers.filter((peerId) => peerId !== connection.id),
+          peers: peerIds.filter((peerId) => peerId !== connection.id),
         } satisfies SyncMessage),
       );
     }
