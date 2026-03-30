@@ -71,7 +71,7 @@ npm run deploy:staging
 Custom domains are configured directly in `wrangler.jsonc` per Wrangler environment:
 
 - `production` -> `kniffel.schreiber-lang.de`
-- `staging` -> `test.kniffel.schreiber-lang.de`
+- `staging` -> `test-kniffel.schreiber-lang.de`
 
 That means HTTPS is provisioned by Cloudflare on deploy, instead of relying on manual dashboard routing.
 

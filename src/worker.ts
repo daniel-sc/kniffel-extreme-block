@@ -11,10 +11,7 @@ export class KniffelSyncServer extends Server<Env> {
   };
 
   async onStart(): Promise<void> {
-    await this.ctx.blockConcurrencyWhile(async () => {
-      await this.ctx.storage.get(STATE_KEY);
-      await this.scheduleCleanupAlarm();
-    });
+    await this.scheduleCleanupAlarm();
   }
 
   async onConnect(connection: Connection): Promise<void> {
@@ -31,21 +28,20 @@ export class KniffelSyncServer extends Server<Env> {
 
   async onMessage(sender: Connection, message: WSMessage): Promise<void> {
     if (typeof message !== 'string') {
+      console.warn('Received non-string message, ignoring.');
       return;
     }
-
-    let payload: SyncMessage;
 
     try {
-      payload = JSON.parse(message) as SyncMessage;
-    } catch {
-      return;
-    }
+      const payload: SyncMessage = JSON.parse(message) as SyncMessage;
 
-    if (payload.type === 'sync') {
-      await this.ctx.storage.put(STATE_KEY, payload.state);
-      this.broadcast(JSON.stringify(payload));
-      await this.scheduleCleanupAlarm();
+      if (payload.type === 'sync') {
+        await this.ctx.storage.put(STATE_KEY, payload.state);
+        this.broadcast(JSON.stringify(payload), [sender.id]);
+        await this.scheduleCleanupAlarm();
+      }
+    } catch {
+      console.warn('Failed to parse message:', message);
     }
   }
 
