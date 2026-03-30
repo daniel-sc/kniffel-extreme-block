@@ -17,16 +17,24 @@ interface ShareDialogProps {
   roomId: string;
   remoteCount: number;
   isConnecting: boolean;
+  syncMode: 'sync' | 'offline';
+  connectionStatus: 'connecting' | 'connected' | 'disconnected';
   onConnect: (roomId: string) => Promise<void>;
   onResetRoomId: () => void;
+  onWorkOffline: () => void;
+  onResumeSync: () => Promise<void>;
 }
 
 export const ShareDialog = ({
   roomId,
   remoteCount,
   isConnecting,
+  syncMode,
+  connectionStatus,
   onConnect,
   onResetRoomId,
+  onWorkOffline,
+  onResumeSync,
 }: ShareDialogProps) => {
   const [targetRoomId, setTargetRoomId] = useState('');
   const [copied, setCopied] = useState(false);
@@ -94,6 +102,30 @@ export const ShareDialog = ({
     });
   };
 
+  const handleWorkOffline = () => {
+    onWorkOffline();
+    toast({
+      title: 'Offline-Modus aktiv',
+      description: 'Die Bearbeitung laeuft jetzt nur lokal, bis du Sync fortsetzt.',
+    });
+  };
+
+  const handleResumeSync = async () => {
+    try {
+      await onResumeSync();
+      toast({
+        title: 'Sync fortgesetzt',
+        description: 'Die Verbindung zum Raum wird wieder aufgebaut.',
+      });
+    } catch (err) {
+      toast({
+        title: 'Verbindungsfehler',
+        description: err instanceof Error ? err.message : 'Konnte den Raum nicht oeffnen.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -123,6 +155,18 @@ export const ShareDialog = ({
         </DialogHeader>
 
         <div className="space-y-4">
+          <div className="rounded-md border p-3 text-sm">
+            {syncMode === 'offline' ? (
+              <p className="text-muted-foreground">Offline-Modus aktiv. Es findet keine Synchronisierung statt.</p>
+            ) : connectionStatus === 'connected' ? (
+              <p className="text-muted-foreground">Mit dem Raum verbunden.</p>
+            ) : connectionStatus === 'connecting' ? (
+              <p className="text-muted-foreground">Verbindung zum Raum wird aufgebaut.</p>
+            ) : (
+              <p className="text-muted-foreground">Momentan nicht mit dem Raum verbunden.</p>
+            )}
+          </div>
+
           <div className="space-y-2">
             <Label>Aktuelle Raum-ID</Label>
             <div className="flex gap-2">
@@ -148,6 +192,15 @@ export const ShareDialog = ({
             <p className="text-xs text-muted-foreground">
               Diese Raum-ID wird lokal gespeichert und dauerhaft wiederverwendet.
             </p>
+            {syncMode === 'offline' ? (
+              <Button type="button" className="w-full" onClick={() => void handleResumeSync()} disabled={isConnecting}>
+                {isConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sync fortsetzen'}
+              </Button>
+            ) : (
+              <Button type="button" variant="outline" className="w-full" onClick={handleWorkOffline}>
+                Offline arbeiten
+              </Button>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -171,7 +224,7 @@ export const ShareDialog = ({
           </div>
 
           <p className="text-xs text-muted-foreground">
-            💡 Änderungen werden als kompletter Spielzustand in denselben Raum übertragen.
+            Aenderungen werden als kompletter Spielzustand in denselben Raum uebertragen.
           </p>
         </div>
       </DialogContent>

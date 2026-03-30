@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { GameState, GameCell, Player, CURRENT_VERSION } from '@/types/game';
 
 const createEmptyCell = (): GameCell => ({ value: null, struck: false });
+const createUpdatedAt = () => new Date().toISOString();
 
 const createPlayer = (id: string, name: string = ''): Player => ({
   id,
@@ -36,7 +37,20 @@ const createPlayer = (id: string, name: string = ''): Player => ({
 
 const createInitialState = (): GameState => ({
   version: CURRENT_VERSION,
+  updatedAt: createUpdatedAt(),
   players: [createPlayer('player-1', '')],
+});
+
+const normalizeGameState = (state: Partial<GameState>): GameState => ({
+  version: CURRENT_VERSION,
+  updatedAt: typeof state.updatedAt === 'string' && state.updatedAt.length > 0 ? state.updatedAt : createUpdatedAt(),
+  players: Array.isArray(state.players) && state.players.length > 0 ? state.players : createInitialState().players,
+  gameId: state.gameId,
+});
+
+const touchGameState = (state: GameState): GameState => ({
+  ...state,
+  updatedAt: createUpdatedAt(),
 });
 
 export const useGameState = () => {
@@ -46,7 +60,7 @@ export const useGameState = () => {
       const parsed = JSON.parse(saved);
       // Check version compatibility
       if (parsed.version === CURRENT_VERSION) {
-        return parsed;
+        return normalizeGameState(parsed);
       }
       // Discard incompatible state
       console.log('Discarding incompatible state version:', parsed.version);
@@ -64,53 +78,60 @@ export const useGameState = () => {
     field: string,
     updates: Partial<GameCell>
   ) => {
-    setGameState((prev) => ({
-      ...prev,
-      players: prev.players.map((player) => {
-        if (player.id !== playerId) return player;
-        
-        const currentSection = player[section];
-        const currentCell = currentSection[field as keyof typeof currentSection] as GameCell;
-        
-        return {
-          ...player,
-          [section]: {
-            ...currentSection,
-            [field]: {
-              value: currentCell.value,
-              struck: currentCell.struck,
-              ...updates,
+    setGameState((prev) =>
+      touchGameState({
+        ...prev,
+        players: prev.players.map((player) => {
+          if (player.id !== playerId) return player;
+
+          const currentSection = player[section];
+          const currentCell = currentSection[field as keyof typeof currentSection] as GameCell;
+
+          return {
+            ...player,
+            [section]: {
+              ...currentSection,
+              [field]: {
+                value: currentCell.value,
+                struck: currentCell.struck,
+                ...updates,
+              },
             },
-          },
-        };
+          };
+        }),
       }),
-    }));
+    );
   };
 
   const updatePlayerName = (playerId: string, name: string) => {
-    setGameState((prev) => ({
-      ...prev,
-      players: prev.players.map((player) =>
-        player.id === playerId ? { ...player, name } : player
-      ),
-    }));
+    setGameState((prev) =>
+      touchGameState({
+        ...prev,
+        players: prev.players.map((player) =>
+          player.id === playerId ? { ...player, name } : player,
+        ),
+      }),
+    );
   };
 
   const addPlayer = () => {
     const newPlayer = createPlayer(`player-${Date.now()}`, '');
-    setGameState((prev) => ({
-      ...prev,
-      players: [...prev.players, newPlayer],
-    }));
+    setGameState((prev) =>
+      touchGameState({
+        ...prev,
+        players: [...prev.players, newPlayer],
+      }),
+    );
     return newPlayer.id;
   };
 
-
   const removePlayer = (playerId: string) => {
-    setGameState((prev) => ({
-      ...prev,
-      players: prev.players.filter((p) => p.id !== playerId),
-    }));
+    setGameState((prev) =>
+      touchGameState({
+        ...prev,
+        players: prev.players.filter((p) => p.id !== playerId),
+      }),
+    );
   };
 
   const resetGame = () => {
@@ -130,24 +151,24 @@ export const useGameState = () => {
 
       return {
         version: CURRENT_VERSION,
+        updatedAt: createUpdatedAt(),
         players,
       };
     });
   };
- 
-   const setRemoteGameState = (state: GameState) => {
-     setGameState(state);
-   };
- 
-   return {
-     gameState,
-     setGameState: setRemoteGameState,
-     updateCell,
-     updatePlayerName,
-     addPlayer,
-     removePlayer,
-     resetGame,
-     revancheGame,
-   };
- };
 
+  const setRemoteGameState = (state: GameState) => {
+    setGameState(normalizeGameState(state));
+  };
+
+  return {
+    gameState,
+    setGameState: setRemoteGameState,
+    updateCell,
+    updatePlayerName,
+    addPlayer,
+    removePlayer,
+    resetGame,
+    revancheGame,
+  };
+};
