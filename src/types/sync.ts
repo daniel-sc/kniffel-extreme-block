@@ -3,6 +3,11 @@ export interface SyncPayload<TState = unknown> {
   state: TState;
 }
 
+export interface InitialStatePayload<TState = unknown> {
+  type: 'initial-state';
+  state: TState | null;
+}
+
 export interface PresencePayload {
   type: 'presence';
   peers: string[];
@@ -10,4 +15,5 @@ export interface PresencePayload {
 
 export type SyncMessage<TState = unknown> =
   | SyncPayload<TState>
+  | InitialStatePayload<TState>
   | PresencePayload;

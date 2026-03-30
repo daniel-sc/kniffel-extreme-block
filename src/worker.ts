@@ -24,9 +24,12 @@ export class KniffelSyncServer extends Server<Env> {
     this.closeStaleConnections(connection, sessionId);
 
     const latestState = await this.ctx.storage.get<unknown>(STATE_KEY);
-    if (latestState !== undefined) {
-      connection.send(JSON.stringify({ type: 'sync', state: latestState } satisfies SyncMessage));
-    }
+    connection.send(
+      JSON.stringify({
+        type: 'initial-state',
+        state: latestState ?? null,
+      } satisfies SyncMessage),
+    );
 
     this.broadcastPresence();
     await this.scheduleCleanupAlarm();

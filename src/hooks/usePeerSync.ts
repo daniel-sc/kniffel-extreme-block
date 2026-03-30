@@ -53,13 +53,14 @@ const getPartyName = () => {
 };
 
 export const usePeerSync = (
-  _gameState: GameState,
+  onInitialState: (state: GameState | null) => void,
   onRemoteUpdate: (state: GameState) => void,
 ): {
   peerId: string;
   connectedPeers: string[];
   isConnecting: boolean;
   isReconnecting: boolean;
+  isSyncReady: boolean;
   connectToPeer: (remotePeerId: string) => Promise<void>;
   removePeer: () => void;
   resetPeerId: () => void;
@@ -68,11 +69,18 @@ export const usePeerSync = (
   const [roomId, setRoomId] = useState('');
   const [isConnecting, setIsConnecting] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [isSyncReady, setIsSyncReady] = useState(false);
   const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
   const socketRef = useRef<PartySocket | null>(null);
+  const onInitialStateRef = useRef(onInitialState);
   const onRemoteUpdateRef = useRef(onRemoteUpdate);
   const roomIdRef = useRef(roomId);
   const isConnectedRef = useRef(isConnected);
+  const isSyncReadyRef = useRef(isSyncReady);
+
+  useEffect(() => {
+    onInitialStateRef.current = onInitialState;
+  }, [onInitialState]);
 
   useEffect(() => {
     onRemoteUpdateRef.current = onRemoteUpdate;
@@ -86,6 +94,10 @@ export const usePeerSync = (
     isConnectedRef.current = isConnected;
   }, [isConnected]);
 
+  useEffect(() => {
+    isSyncReadyRef.current = isSyncReady;
+  }, [isSyncReady]);
+
   const closeSocket = useCallback(() => {
     if (socketRef.current) {
       socketRef.current.close();
@@ -94,6 +106,8 @@ export const usePeerSync = (
     isConnectedRef.current = false;
     setIsConnected(false);
     setIsConnecting(false);
+    isSyncReadyRef.current = false;
+    setIsSyncReady(false);
     setConnectedPeers([]);
   }, []);
 
@@ -110,6 +124,9 @@ export const usePeerSync = (
 
       closeSocket();
       setIsConnecting(true);
+      isSyncReadyRef.current = false;
+      setIsSyncReady(false);
+      setConnectedPeers([]);
       roomIdRef.current = nextRoomId;
       setRoomId(nextRoomId);
       storeRoomId(nextRoomId);
@@ -129,16 +146,31 @@ export const usePeerSync = (
         socketRef.current = socket;
 
         socket.addEventListener('open', () => {
+          if (socketRef.current !== socket) {
+            return;
+          }
+
           window.clearTimeout(timeout);
           setIsConnecting(false);
           isConnectedRef.current = true;
           setIsConnected(true);
+          isSyncReadyRef.current = false;
+          setIsSyncReady(false);
           resolve();
         });
 
         socket.addEventListener('message', (event) => {
+          if (socketRef.current !== socket) {
+            return;
+          }
+
           try {
             const message = JSON.parse(String(event.data)) as SyncMessage<GameState>;
+            if (message.type === 'initial-state') {
+              onInitialStateRef.current(message.state);
+              isSyncReadyRef.current = true;
+              setIsSyncReady(true);
+            }
             if (message.type === 'sync') {
               onRemoteUpdateRef.current(message.state);
             }
@@ -151,11 +183,22 @@ export const usePeerSync = (
         });
 
         socket.addEventListener('close', () => {
+          if (socketRef.current !== socket) {
+            return;
+          }
+
           isConnectedRef.current = false;
           setIsConnected(false);
+          isSyncReadyRef.current = false;
+          setIsSyncReady(false);
+          setConnectedPeers([]);
         });
 
         socket.addEventListener('error', () => {
+          if (socketRef.current !== socket) {
+            return;
+          }
+
           window.clearTimeout(timeout);
           setIsConnecting(false);
           reject(new Error('Fehler beim Verbinden mit dem Raum.'));
@@ -192,7 +235,7 @@ export const usePeerSync = (
 
   const broadcastState = useCallback((state: GameState) => {
     const socket = socketRef.current;
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
+    if (!socket || socket.readyState !== WebSocket.OPEN || !isSyncReadyRef.current) {
       return;
     }
 
@@ -204,6 +247,7 @@ export const usePeerSync = (
     connectedPeers,
     isConnecting,
     isReconnecting: false,
+    isSyncReady,
     connectToPeer: connectToRoom,
     removePeer: () => {
       closeSocket();

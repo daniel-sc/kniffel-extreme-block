@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { useElementSize } from '@/hooks/useElementSize';
 import { Input } from '@/components/ui/input';
@@ -29,11 +29,10 @@ const Index = () => {
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const latestGameStateRef = useRef(gameState);
   const suppressNextBroadcastRef = useRef(false);
-  const pendingInitialSyncRef = useRef(false);
   const lastAddedPlayerId = useRef<string | null>(null);
   const { ref: headerRef, size: headerSize } = useElementSize<HTMLDivElement>();
   const headerOffset = headerSize.height || 88;
-  const pageStyles = { paddingTop: headerOffset,   'overflowY': 'auto', 'overflowX': 'visible' };
+  const pageStyles: CSSProperties = { paddingTop: headerOffset, overflowY: 'auto', overflowX: 'visible' };
 
   const [isRevancheVisible, setIsRevancheVisible] = useState(false);
   const revancheContainerClasses = cn(
@@ -176,12 +175,27 @@ const Index = () => {
 
   // Peer sync
 
-  const handleRemoteUpdate = (remoteState: GameState) => {
-    if (pendingInitialSyncRef.current) {
-      pendingInitialSyncRef.current = false;
+  const areGameStatesEqual = (left: GameState, right: GameState) => {
+    return JSON.stringify(left) === JSON.stringify(right);
+  };
+
+  const handleInitialState = (remoteState: GameState | null) => {
+    if (remoteState === null) {
+      return;
     }
+
+    suppressNextBroadcastRef.current = true;
+
+    if (areGameStatesEqual(latestGameStateRef.current, remoteState)) {
+      return;
+    }
+
+    setGameState(remoteState);
+  };
+
+  const handleRemoteUpdate = (remoteState: GameState) => {
     const currentState = latestGameStateRef.current;
-    if (JSON.stringify(currentState) === JSON.stringify(remoteState)) {
+    if (areGameStatesEqual(currentState, remoteState)) {
       return;
     }
     suppressNextBroadcastRef.current = true;
@@ -192,36 +206,32 @@ const Index = () => {
     peerId,
     connectedPeers,
     isConnecting,
+    isSyncReady,
     connectToPeer,
     resetPeerId,
     broadcastState,
-  } = usePeerSync(gameState, handleRemoteUpdate);
+  } = usePeerSync(handleInitialState, handleRemoteUpdate);
 
   const handleConnectToPeer = (remotePeerId: string) => {
-    pendingInitialSyncRef.current = true;
-    return connectToPeer(remotePeerId).catch((err) => {
-      pendingInitialSyncRef.current = false;
-      throw err;
-    });
+    return connectToPeer(remotePeerId);
   };
 
   useEffect(() => {
     latestGameStateRef.current = gameState;
   }, [gameState]);
 
-  // Broadcast state changes to connected peers
+  // Wait until the server has sent the room's initial snapshot (or null for an
+  // empty room) before publishing local changes.
   useEffect(() => {
-    if (connectedPeers.length > 0) {
-      if (pendingInitialSyncRef.current) {
-        return;
-      }
-      if (suppressNextBroadcastRef.current) {
-        suppressNextBroadcastRef.current = false;
-        return;
-      }
-      broadcastState(gameState);
+    if (!isSyncReady) {
+      return;
     }
-  }, [gameState, connectedPeers.length, broadcastState]);
+    if (suppressNextBroadcastRef.current) {
+      suppressNextBroadcastRef.current = false;
+      return;
+    }
+    broadcastState(gameState);
+  }, [gameState, isSyncReady, broadcastState]);
 
   useEffect(() => {
     if (!lastAddedPlayerId.current) return;
