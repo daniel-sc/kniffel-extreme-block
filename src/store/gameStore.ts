@@ -119,7 +119,7 @@ const storeLastSyncedAt = (roomId: string, updatedAt: string | null) => {
 // --- Broadcast suppression (imperative flag, not reactive) ---
 
 let _suppressNextBroadcast = false;
-export const suppressBroadcastOnce = () => {
+const suppressBroadcastOnce = () => {
   _suppressNextBroadcast = true;
 };
 export const consumeBroadcastSuppression = () => {
@@ -131,6 +131,12 @@ export const consumeBroadcastSuppression = () => {
 };
 
 // --- Store ---
+
+interface InitialStateResolutionReady {
+  applyState?: GameState;
+  suppressBroadcast: boolean;
+  newLastSyncedAt?: string | null;
+}
 
 interface GameStore {
   // Game state
@@ -159,19 +165,25 @@ interface GameStore {
   lastSyncedAt: string | null;
   syncConflict: SyncConflictState | null;
 
-  // Sync actions
-  setConnectionStatus: (status: ConnectionStatus) => void;
-  setSyncReady: (ready: boolean) => void;
-  setConnectedPeers: (peers: string[]) => void;
-  updateRoom: (roomId: string) => void;
-  markLastSyncedAt: (updatedAt: string | null) => void;
-  setSyncMode: (mode: SyncMode) => void;
-  resetSyncConnection: () => void;
+  // Sync: composite operations
+  applyRemoteSync: (state: GameState, lastSyncedAt: string) => void;
+  applyInitialStateResolution: (
+    resolution: InitialStateResolutionReady,
+    replaceWithFresh: boolean,
+  ) => void;
+  resolveConflictKeepLocal: () => void;
+  resolveConflictKeepServer: () => void;
+  goOffline: () => void;
+  beginRoomConnection: (roomId: string) => void;
 
-  // Remote state actions
-  applyRemoteState: (state: GameState) => void;
+  // Sync: granular setters (for single-purpose call sites)
+  setConnectionStatus: (status: ConnectionStatus) => void;
   setSyncConflict: (conflict: SyncConflictState | null) => void;
   updateConflictServerState: (serverState: GameState) => void;
+  setConnectedPeers: (peers: string[]) => void;
+  markLastSyncedAt: (updatedAt: string | null) => void;
+  updateRoom: (roomId: string) => void;
+  resetSyncConnection: () => void;
 }
 
 export const useGameStore = create<GameStore>()((set, get) => ({
@@ -262,13 +274,91 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   lastSyncedAt: null,
   syncConflict: null,
 
-  setConnectionStatus: (status) => set({ connectionStatus: status }),
-  setSyncReady: (ready) => set({ isSyncReady: ready }),
-  setConnectedPeers: (peers) => set({ connectedPeers: peers }),
+  // --- Sync: composite operations ---
 
-  updateRoom: (nextRoomId) => {
+  applyRemoteSync: (state, lastSyncedAt) => {
+    suppressBroadcastOnce();
+    const { roomId } = get();
+    if (roomId) storeLastSyncedAt(roomId, lastSyncedAt);
+    set({
+      lastSyncedAt,
+      isPristineLocalState: false,
+      gameState: normalizeGameState(state),
+    });
+  },
+
+  applyInitialStateResolution: (resolution, replaceWithFresh) => {
+    if (resolution.suppressBroadcast) suppressBroadcastOnce();
+
+    if (resolution.newLastSyncedAt !== undefined) {
+      const { roomId } = get();
+      if (roomId) storeLastSyncedAt(roomId, resolution.newLastSyncedAt);
+    }
+
+    const newGameState = resolution.applyState
+      ? normalizeGameState(resolution.applyState)
+      : replaceWithFresh
+        ? createInitialGameState()
+        : undefined;
+
+    set({
+      syncConflict: null,
+      isSyncReady: true,
+      ...(resolution.newLastSyncedAt !== undefined
+        ? { lastSyncedAt: resolution.newLastSyncedAt }
+        : {}),
+      ...(newGameState ? { gameState: newGameState, isPristineLocalState: false } : {}),
+    });
+  },
+
+  resolveConflictKeepLocal: () => {
+    set({ syncConflict: null, isSyncReady: true });
+  },
+
+  resolveConflictKeepServer: () => {
+    const { syncConflict, roomId } = get();
+    if (!syncConflict) return;
+    suppressBroadcastOnce();
+    if (roomId) storeLastSyncedAt(roomId, syncConflict.serverState.updatedAt);
+    set({
+      lastSyncedAt: syncConflict.serverState.updatedAt,
+      isPristineLocalState: false,
+      gameState: normalizeGameState(syncConflict.serverState),
+      syncConflict: null,
+      isSyncReady: true,
+    });
+  },
+
+  goOffline: () => {
+    localStorage.setItem(SYNC_MODE_STORAGE_KEY, 'offline');
+    set({ syncMode: 'offline', syncConflict: null });
+  },
+
+  beginRoomConnection: (nextRoomId) => {
     localStorage.setItem(ROOM_ID_STORAGE_KEY, nextRoomId);
-    set({ roomId: nextRoomId, lastSyncedAt: readStoredLastSyncedAt(nextRoomId) });
+    localStorage.setItem(SYNC_MODE_STORAGE_KEY, 'sync');
+    set({
+      roomId: nextRoomId,
+      lastSyncedAt: readStoredLastSyncedAt(nextRoomId),
+      syncMode: 'sync',
+      connectionStatus: 'connecting',
+      isSyncReady: false,
+    });
+  },
+
+  // --- Sync: granular setters ---
+
+  setConnectionStatus: (status) => set({ connectionStatus: status }),
+  setConnectedPeers: (peers) => set({ connectedPeers: peers }),
+  resetSyncConnection: () =>
+    set({ connectionStatus: 'disconnected', isSyncReady: false, connectedPeers: [] }),
+
+  setSyncConflict: (conflict) => set({ syncConflict: conflict }),
+  updateConflictServerState: (serverState) => {
+    set((s) => {
+      if (!s.syncConflict) return s;
+      return { syncConflict: { ...s.syncConflict, serverState } };
+    });
   },
 
   markLastSyncedAt: (updatedAt) => {
@@ -277,27 +367,9 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     set({ lastSyncedAt: updatedAt });
   },
 
-  setSyncMode: (mode) => {
-    localStorage.setItem(SYNC_MODE_STORAGE_KEY, mode);
-    set({ syncMode: mode });
-  },
-
-  resetSyncConnection: () => {
-    set({ connectionStatus: 'disconnected', isSyncReady: false, connectedPeers: [] });
-  },
-
-  // --- Remote state ---
-  applyRemoteState: (state) => {
-    set({ isPristineLocalState: false, gameState: normalizeGameState(state) });
-  },
-
-  setSyncConflict: (conflict) => set({ syncConflict: conflict }),
-
-  updateConflictServerState: (serverState) => {
-    set((s) => {
-      if (!s.syncConflict) return s;
-      return { syncConflict: { ...s.syncConflict, serverState } };
-    });
+  updateRoom: (nextRoomId) => {
+    localStorage.setItem(ROOM_ID_STORAGE_KEY, nextRoomId);
+    set({ roomId: nextRoomId, lastSyncedAt: readStoredLastSyncedAt(nextRoomId) });
   },
 }));
 

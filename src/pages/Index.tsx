@@ -15,7 +15,7 @@ import { ScoreRow } from '@/components/ScoreRow';
 import { TotalRow } from '@/components/TotalRow';
 import { ShareDialog } from '@/components/ShareDialog';
 import { ShareNutsAboutStatsButton } from '@/components/ShareNutsAboutStatsButton';
-import { useGameStore, suppressBroadcastOnce } from '@/store/gameStore';
+import { useGameStore } from '@/store/gameStore';
 import { usePeerSync } from '@/hooks/usePeerSync';
 import { useTouchLongPress } from '@/hooks/useTouchLongPress';
 import { FIXED_SCORES } from '@/types/game';
@@ -143,22 +143,8 @@ const Index = () => {
 
   // --- Conflict resolution ---
 
-  const handleKeepLocalState = () => {
-    const s = useGameStore.getState();
-    s.setSyncConflict(null);
-    s.setSyncReady(true);
-  };
-
-  const handleKeepServerState = () => {
-    const s = useGameStore.getState();
-    const conflict = s.syncConflict;
-    if (!conflict) return;
-    suppressBroadcastOnce();
-    s.markLastSyncedAt(conflict.serverState.updatedAt);
-    s.applyRemoteState(conflict.serverState);
-    s.setSyncConflict(null);
-    s.setSyncReady(true);
-  };
+  const handleKeepLocalState = () => useGameStore.getState().resolveConflictKeepLocal();
+  const handleKeepServerState = () => useGameStore.getState().resolveConflictKeepServer();
 
   // --- Player management ---
 

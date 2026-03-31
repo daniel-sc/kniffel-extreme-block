@@ -4,9 +4,7 @@ import { GameState } from '@/types/game';
 import { SyncMessage } from '@/types/sync';
 import {
   useGameStore,
-  createInitialGameState,
   readStoredLastSyncedAt,
-  suppressBroadcastOnce,
   consumeBroadcastSuppression,
 } from '@/store/gameStore';
 import { resolveInitialState, resolveRemoteUpdate } from '@/utils/syncResolution';
@@ -95,14 +93,7 @@ export const usePeerSync = () => {
         return false;
       }
 
-      s.setSyncConflict(null);
-      if (result.suppressBroadcast) suppressBroadcastOnce();
-      if (result.newLastSyncedAt !== undefined) s.markLastSyncedAt(result.newLastSyncedAt);
-      if (result.applyState) {
-        s.applyRemoteState(result.applyState);
-      } else if (context.replaceLocalState && remoteState === null) {
-        s.applyRemoteState(createInitialGameState());
-      }
+      s.applyInitialStateResolution(result, context.replaceLocalState && remoteState === null);
       return true;
     },
     [store],
@@ -119,9 +110,7 @@ export const usePeerSync = () => {
 
       switch (result.action) {
         case 'apply':
-          suppressBroadcastOnce();
-          s.markLastSyncedAt(result.lastSyncedAt);
-          s.applyRemoteState(result.state);
+          s.applyRemoteSync(result.state, result.lastSyncedAt);
           break;
         case 'update-conflict':
           s.updateConflictServerState(result.serverState);
@@ -146,8 +135,6 @@ export const usePeerSync = () => {
       }
 
       const s = store.getState();
-      s.setSyncMode('sync');
-
       if (
         socketRef.current &&
         socketRef.current.room === nextRoomId &&
@@ -166,8 +153,7 @@ export const usePeerSync = () => {
       };
 
       closeSocket();
-      store.getState().updateRoom(nextRoomId);
-      store.getState().setConnectionStatus('connecting');
+      store.getState().beginRoomConnection(nextRoomId);
       hasReceivedInitialStateRef.current = false;
 
       await new Promise<void>((resolve, reject) => {
@@ -178,7 +164,7 @@ export const usePeerSync = () => {
           isSettled = true;
           socket.close();
           if (socketRef.current === socket) socketRef.current = null;
-          store.getState().setConnectionStatus('disconnected');
+          store.getState().resetSyncConnection();
           reject(new Error('Verbindungs-Timeout zum Raum.'));
         }, 10000);
 
@@ -194,7 +180,6 @@ export const usePeerSync = () => {
           if (socketRef.current !== socket || store.getState().syncMode !== 'sync') return;
           window.clearTimeout(timeout);
           store.getState().setConnectionStatus('connected');
-          store.getState().setSyncReady(false);
           if (!isSettled) {
             isSettled = true;
             resolve();
@@ -212,10 +197,9 @@ export const usePeerSync = () => {
                 initialStateContextRef.current.roomId === nextRoomId
                   ? initialStateContextRef.current
                   : { replaceLocalState: false, roomId: nextRoomId };
-              const isReady = handleInitialStateMessage(message.state, context);
+              handleInitialStateMessage(message.state, context);
               pendingReplaceLocalStateRef.current = false;
               initialStateContextRef.current = { replaceLocalState: false, roomId: nextRoomId };
-              store.getState().setSyncReady(isReady);
             }
 
             if (message.type === 'sync' && hasReceivedInitialStateRef.current) {
@@ -242,7 +226,7 @@ export const usePeerSync = () => {
             isSettled = true;
             socket.close();
             if (socketRef.current === socket) socketRef.current = null;
-            store.getState().setConnectionStatus('disconnected');
+            store.getState().resetSyncConnection();
             reject(new Error('Fehler beim Verbinden mit dem Raum.'));
           }
         });
@@ -329,9 +313,7 @@ export const usePeerSync = () => {
   }, [closeSocket, connectToRoom, store]);
 
   const workOffline = useCallback(() => {
-    const s = store.getState();
-    s.setSyncMode('offline');
-    s.setSyncConflict(null);
+    store.getState().goOffline();
     closeSocket();
   }, [closeSocket, store]);
 
