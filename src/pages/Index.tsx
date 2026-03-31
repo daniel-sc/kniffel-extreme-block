@@ -70,6 +70,7 @@ const Index = () => {
   const suppressNextBroadcastRef = useRef(false);
   const lastAddedPlayerId = useRef<string | null>(null);
   const [syncConflict, setSyncConflict] = useState<SyncConflictState | null>(null);
+  const syncConflictRef = useRef<SyncConflictState | null>(syncConflict);
   const { ref: headerRef, size: headerSize } = useElementSize<HTMLDivElement>();
   const headerOffset = headerSize.height || 88;
   const pageStyles: CSSProperties = { paddingTop: headerOffset, overflowY: 'auto', overflowX: 'visible' };
@@ -206,6 +207,8 @@ const Index = () => {
   }, []);
 
 
+  syncConflictRef.current = syncConflict;
+
   const handleAddPlayer = () => {
     const newPlayerId = addPlayer();
     if (newPlayerId) {
@@ -272,6 +275,30 @@ const Index = () => {
 
   const handleRemoteUpdate = (remoteState: GameState) => {
     const normalizedRemoteState = ensureRevision(remoteState);
+    const activeConflict = syncConflictRef.current;
+
+    if (activeConflict) {
+      if (areGameStatesEqual(activeConflict.serverState, normalizedRemoteState)) {
+        return;
+      }
+
+      setSyncConflict((currentConflict) => {
+        if (!currentConflict) {
+          return currentConflict;
+        }
+
+        if (areGameStatesEqual(currentConflict.serverState, normalizedRemoteState)) {
+          return currentConflict;
+        }
+
+        return {
+          ...currentConflict,
+          serverState: normalizedRemoteState,
+        };
+      });
+      return;
+    }
+
     const currentState = latestGameStateRef.current;
     if (areGameStatesEqual(currentState, normalizedRemoteState)) {
       markLastSyncedAt(normalizedRemoteState.updatedAt);

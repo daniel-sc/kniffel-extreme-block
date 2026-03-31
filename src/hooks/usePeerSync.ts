@@ -120,6 +120,7 @@ export const usePeerSync = (
   const syncModeRef = useRef(syncMode);
   const connectionStatusRef = useRef(connectionStatus);
   const isSyncReadyRef = useRef(isSyncReady);
+  const hasReceivedInitialStateRef = useRef(false);
 
   onInitialStateRef.current = onInitialState;
   onRemoteUpdateRef.current = onRemoteUpdate;
@@ -162,6 +163,7 @@ export const usePeerSync = (
       socketRef.current = null;
     }
 
+    hasReceivedInitialStateRef.current = false;
     updateConnectionStatus('disconnected');
     setSyncReady(false);
     setConnectedPeers([]);
@@ -189,6 +191,7 @@ export const usePeerSync = (
       closeSocket();
       updateRoom(nextRoomId);
       updateConnectionStatus('connecting');
+      hasReceivedInitialStateRef.current = false;
       setSyncReady(false);
 
       await new Promise<void>((resolve, reject) => {
@@ -238,11 +241,12 @@ export const usePeerSync = (
           try {
             const message = JSON.parse(String(event.data)) as SyncMessage<GameState>;
             if (message.type === 'initial-state') {
+              hasReceivedInitialStateRef.current = true;
               const isReady = onInitialStateRef.current(message.state);
               setSyncReady(isReady);
             }
 
-            if (message.type === 'sync' && isSyncReadyRef.current) {
+            if (message.type === 'sync' && hasReceivedInitialStateRef.current) {
               onRemoteUpdateRef.current(message.state);
             }
 
