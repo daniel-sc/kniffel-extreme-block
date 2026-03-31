@@ -12,6 +12,15 @@ const DEFAULT_PARTY_NAME = 'kniffel-sync';
 type SyncMode = 'sync' | 'offline';
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
+export interface InitialStateContext {
+  replaceLocalState: boolean;
+  roomId: string;
+}
+
+interface ConnectToRoomOptions {
+  replaceLocalState?: boolean;
+}
+
 const generateRoomId = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -87,7 +96,7 @@ const getPartyName = () => {
 };
 
 export const usePeerSync = (
-  onInitialState: (state: GameState | null) => boolean,
+  onInitialState: (state: GameState | null, context: InitialStateContext) => boolean,
   onRemoteUpdate: (state: GameState) => void,
 ): {
   peerId: string;
@@ -121,6 +130,11 @@ export const usePeerSync = (
   const connectionStatusRef = useRef(connectionStatus);
   const isSyncReadyRef = useRef(isSyncReady);
   const hasReceivedInitialStateRef = useRef(false);
+  const initialStateContextRef = useRef<InitialStateContext>({
+    replaceLocalState: false,
+    roomId: '',
+  });
+  const pendingReplaceLocalStateRef = useRef(false);
 
   onInitialStateRef.current = onInitialState;
   onRemoteUpdateRef.current = onRemoteUpdate;
@@ -170,7 +184,7 @@ export const usePeerSync = (
   }, [setSyncReady, updateConnectionStatus]);
 
   const connectToRoom = useCallback(
-    async (targetRoomId: string) => {
+    async (targetRoomId: string, options?: ConnectToRoomOptions) => {
       const nextRoomId = targetRoomId.trim();
       if (!nextRoomId) {
         throw new Error('Bitte eine gültige Raum-ID eingeben.');
@@ -187,6 +201,15 @@ export const usePeerSync = (
       ) {
         return;
       }
+
+      if (options?.replaceLocalState) {
+        pendingReplaceLocalStateRef.current = true;
+      }
+
+      initialStateContextRef.current = {
+        replaceLocalState: pendingReplaceLocalStateRef.current,
+        roomId: nextRoomId,
+      };
 
       closeSocket();
       updateRoom(nextRoomId);
@@ -242,7 +265,15 @@ export const usePeerSync = (
             const message = JSON.parse(String(event.data)) as SyncMessage<GameState>;
             if (message.type === 'initial-state') {
               hasReceivedInitialStateRef.current = true;
-              const isReady = onInitialStateRef.current(message.state);
+              const initialStateContext = initialStateContextRef.current.roomId === nextRoomId
+                ? initialStateContextRef.current
+                : { replaceLocalState: false, roomId: nextRoomId };
+              const isReady = onInitialStateRef.current(message.state, initialStateContext);
+              pendingReplaceLocalStateRef.current = false;
+              initialStateContextRef.current = {
+                replaceLocalState: false,
+                roomId: nextRoomId,
+              };
               setSyncReady(isReady);
             }
 
@@ -295,13 +326,17 @@ export const usePeerSync = (
     const initialRoomId = sharedRoomId || storedRoomId || generateRoomId();
 
     if (sharedRoomId) {
+      pendingReplaceLocalStateRef.current = true;
+    }
+
+    if (sharedRoomId) {
       clearSharedRoomParam();
     }
 
     updateRoom(initialRoomId);
 
     if (syncModeRef.current === 'sync') {
-      void connectToRoom(initialRoomId).catch((error) => {
+      void connectToRoom(initialRoomId, { replaceLocalState: Boolean(sharedRoomId) }).catch((error) => {
         console.error('Unable to connect to sync room:', error);
       });
     }
@@ -365,7 +400,7 @@ export const usePeerSync = (
     connectionStatus,
     syncMode,
     lastSyncedAt,
-    connectToPeer: connectToRoom,
+    connectToPeer: (remotePeerId: string) => connectToRoom(remotePeerId, { replaceLocalState: true }),
     removePeer: () => {
       closeSocket();
     },

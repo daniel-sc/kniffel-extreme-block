@@ -15,8 +15,9 @@ import { ScoreRow } from '@/components/ScoreRow';
 import { TotalRow } from '@/components/TotalRow';
 import { ShareDialog } from '@/components/ShareDialog';
 import { ShareNutsAboutStatsButton } from '@/components/ShareNutsAboutStatsButton';
-import { useGameState } from '@/hooks/useGameState';
+import { createInitialGameState, useGameState } from '@/hooks/useGameState';
 import { usePeerSync } from '@/hooks/usePeerSync';
+import type { InitialStateContext } from '@/hooks/usePeerSync';
 import { useTouchLongPress } from '@/hooks/useTouchLongPress';
 import { FIXED_SCORES, GameState } from '@/types/game';
 import {
@@ -61,7 +62,7 @@ const formatTimestamp = (timestamp: string | null) => {
 };
 
 const Index = () => {
-  const { gameState, setGameState, updateCell, updatePlayerName, addPlayer, removePlayer, resetGame, revancheGame } = useGameState();
+  const { gameState, isPristineLocalState, setGameState, updateCell, updatePlayerName, addPlayer, removePlayer, resetGame, revancheGame } = useGameState();
 
 
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -222,7 +223,24 @@ const Index = () => {
     return JSON.stringify(left) === JSON.stringify(right);
   };
 
-  const handleInitialState = (remoteState: GameState | null) => {
+  const handleInitialState = (remoteState: GameState | null, context: InitialStateContext) => {
+    if (context.replaceLocalState) {
+      setSyncConflict(null);
+
+      if (remoteState === null) {
+        suppressNextBroadcastRef.current = false;
+        markLastSyncedAt(null);
+        setGameState(createInitialGameState());
+        return true;
+      }
+
+      const normalizedRemoteState = ensureRevision(remoteState);
+      suppressNextBroadcastRef.current = true;
+      markLastSyncedAt(normalizedRemoteState.updatedAt);
+      setGameState(normalizedRemoteState);
+      return true;
+    }
+
     if (remoteState === null) {
       setSyncConflict(null);
       return true;
@@ -253,6 +271,18 @@ const Index = () => {
     }
 
     if (baseRevision && baseRevision === localRevision && serverRevision !== baseRevision) {
+      suppressNextBroadcastRef.current = true;
+      setSyncConflict(null);
+      markLastSyncedAt(serverRevision);
+
+      if (!areGameStatesEqual(currentState, normalizedRemoteState)) {
+        setGameState(normalizedRemoteState);
+      }
+
+      return true;
+    }
+
+    if (!baseRevision && isPristineLocalState) {
       suppressNextBroadcastRef.current = true;
       setSyncConflict(null);
       markLastSyncedAt(serverRevision);
