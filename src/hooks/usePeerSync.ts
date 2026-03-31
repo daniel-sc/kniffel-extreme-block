@@ -186,6 +186,7 @@ export const usePeerSync = (
   const connectToRoom = useCallback(
     async (targetRoomId: string, options?: ConnectToRoomOptions) => {
       const nextRoomId = targetRoomId.trim();
+      const activeSocket = socketRef.current;
       if (!nextRoomId) {
         throw new Error('Bitte eine gültige Raum-ID eingeben.');
       }
@@ -195,8 +196,8 @@ export const usePeerSync = (
       storeSyncMode('sync');
 
       if (
-        socketRef.current &&
-        roomIdRef.current === nextRoomId &&
+        activeSocket &&
+        activeSocket.room === nextRoomId &&
         connectionStatusRef.current === 'connected'
       ) {
         return;
@@ -348,7 +349,6 @@ export const usePeerSync = (
 
   const resetPeerId = useCallback(() => {
     const newRoomId = generateRoomId();
-    updateRoom(newRoomId);
 
     if (syncModeRef.current === 'sync') {
       void connectToRoom(newRoomId).catch((error) => {
@@ -357,6 +357,7 @@ export const usePeerSync = (
       return;
     }
 
+    updateRoom(newRoomId);
     closeSocket();
   }, [closeSocket, connectToRoom, updateRoom]);
 
