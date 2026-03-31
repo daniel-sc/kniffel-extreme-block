@@ -12,13 +12,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Users, Copy, Check, Loader2, RefreshCcw, Share2 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { useGameStore } from '@/store/gameStore';
 
 interface ShareDialogProps {
-  roomId: string;
-  remoteCount: number;
-  isConnecting: boolean;
-  syncMode: 'sync' | 'offline';
-  connectionStatus: 'connecting' | 'connected' | 'disconnected';
   onConnect: (roomId: string) => Promise<void>;
   onResetRoomId: () => void;
   onWorkOffline: () => void;
@@ -26,16 +22,18 @@ interface ShareDialogProps {
 }
 
 export const ShareDialog = ({
-  roomId,
-  remoteCount,
-  isConnecting,
-  syncMode,
-  connectionStatus,
   onConnect,
   onResetRoomId,
   onWorkOffline,
   onResumeSync,
 }: ShareDialogProps) => {
+  const roomId = useGameStore((s) => s.roomId);
+  const connectedPeers = useGameStore((s) => s.connectedPeers);
+  const syncMode = useGameStore((s) => s.syncMode);
+  const connectionStatus = useGameStore((s) => s.connectionStatus);
+  const isConnecting = connectionStatus === 'connecting';
+  const remoteCount = connectedPeers.length;
+
   const [targetRoomId, setTargetRoomId] = useState('');
   const [copied, setCopied] = useState(false);
 

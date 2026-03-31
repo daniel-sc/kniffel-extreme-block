@@ -1,23 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import PartySocket from 'partysocket';
 import { GameState } from '@/types/game';
 import { SyncMessage } from '@/types/sync';
 import {
   useGameStore,
   createInitialGameState,
+  readStoredLastSyncedAt,
   suppressBroadcastOnce,
   consumeBroadcastSuppression,
 } from '@/store/gameStore';
 import { resolveInitialState, resolveRemoteUpdate } from '@/utils/syncResolution';
 
-const ROOM_ID_STORAGE_KEY = 'kniffel-extreme-sync-room-id';
-const SYNC_MODE_STORAGE_KEY = 'kniffel-extreme-sync-mode';
-const LAST_SYNCED_AT_STORAGE_PREFIX = 'kniffel-extreme-sync-last-synced-at';
 const ROOM_PARAM_KEY = 'room';
 const DEFAULT_PARTY_NAME = 'kniffel-sync';
-
-type SyncMode = 'sync' | 'offline';
-type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
 interface InitialStateContext {
   replaceLocalState: boolean;
@@ -33,40 +28,7 @@ const generateRoomId = () => {
 
 const readStoredRoomId = () => {
   if (typeof window === 'undefined') return '';
-  return localStorage.getItem(ROOM_ID_STORAGE_KEY) || '';
-};
-
-const storeRoomId = (roomId: string) => {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(ROOM_ID_STORAGE_KEY, roomId);
-};
-
-const readStoredSyncMode = (): SyncMode => {
-  if (typeof window === 'undefined') return 'sync';
-  return localStorage.getItem(SYNC_MODE_STORAGE_KEY) === 'offline' ? 'offline' : 'sync';
-};
-
-const storeSyncMode = (syncMode: SyncMode) => {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(SYNC_MODE_STORAGE_KEY, syncMode);
-};
-
-const getLastSyncedAtStorageKey = (roomId: string) =>
-  `${LAST_SYNCED_AT_STORAGE_PREFIX}:${roomId}`;
-
-const readStoredLastSyncedAt = (roomId: string) => {
-  if (typeof window === 'undefined' || !roomId) return null;
-  return localStorage.getItem(getLastSyncedAtStorageKey(roomId));
-};
-
-const storeLastSyncedAt = (roomId: string, updatedAt: string | null) => {
-  if (typeof window === 'undefined' || !roomId) return;
-  const key = getLastSyncedAtStorageKey(roomId);
-  if (updatedAt) {
-    localStorage.setItem(key, updatedAt);
-  } else {
-    localStorage.removeItem(key);
-  }
+  return localStorage.getItem('kniffel-extreme-sync-room-id') || '';
 };
 
 const readSharedRoomId = () => {
@@ -94,18 +56,7 @@ const getPartyName = () => {
 };
 
 export const usePeerSync = () => {
-  const [roomId, setRoomId] = useState('');
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
-  const [isSyncReady, setIsSyncReady] = useState(false);
-  const [connectedPeers, setConnectedPeers] = useState<string[]>([]);
-  const [syncMode, setSyncMode] = useState<SyncMode>(() => readStoredSyncMode());
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
-
   const socketRef = useRef<PartySocket | null>(null);
-  const roomIdRef = useRef(roomId);
-  const syncModeRef = useRef(syncMode);
-  const connectionStatusRef = useRef(connectionStatus);
-  const isSyncReadyRef = useRef(isSyncReady);
   const hasReceivedInitialStateRef = useRef(false);
   const initialStateContextRef = useRef<InitialStateContext>({
     replaceLocalState: false,
@@ -113,35 +64,9 @@ export const usePeerSync = () => {
   });
   const pendingReplaceLocalStateRef = useRef(false);
 
-  roomIdRef.current = roomId;
-  syncModeRef.current = syncMode;
-  connectionStatusRef.current = connectionStatus;
-  isSyncReadyRef.current = isSyncReady;
+  const store = useGameStore;
 
-  const setSyncReadyBoth = useCallback((ready: boolean) => {
-    isSyncReadyRef.current = ready;
-    setIsSyncReady(ready);
-  }, []);
-
-  const updateConnectionStatus = useCallback((status: ConnectionStatus) => {
-    connectionStatusRef.current = status;
-    setConnectionStatus(status);
-  }, []);
-
-  const markLastSyncedAt = useCallback((updatedAt: string | null) => {
-    const currentRoomId = roomIdRef.current;
-    if (currentRoomId) {
-      storeLastSyncedAt(currentRoomId, updatedAt);
-    }
-    setLastSyncedAt(updatedAt);
-  }, []);
-
-  const updateRoom = useCallback((nextRoomId: string) => {
-    roomIdRef.current = nextRoomId;
-    setRoomId(nextRoomId);
-    storeRoomId(nextRoomId);
-    setLastSyncedAt(readStoredLastSyncedAt(nextRoomId));
-  }, []);
+  // --- Socket helpers ---
 
   const closeSocket = useCallback(() => {
     if (socketRef.current) {
@@ -149,68 +74,66 @@ export const usePeerSync = () => {
       socketRef.current = null;
     }
     hasReceivedInitialStateRef.current = false;
-    updateConnectionStatus('disconnected');
-    setSyncReadyBoth(false);
-    setConnectedPeers([]);
-  }, [setSyncReadyBoth, updateConnectionStatus]);
+    store.getState().resetSyncConnection();
+  }, [store]);
 
-  // --- Message handlers that read/write the store directly ---
+  // --- Message handlers ---
 
   const handleInitialStateMessage = useCallback(
     (remoteState: GameState | null, context: InitialStateContext) => {
-      const store = useGameStore.getState();
+      const s = store.getState();
       const result = resolveInitialState({
-        localState: store.gameState,
+        localState: s.gameState,
         remoteState,
         lastSyncedAt: readStoredLastSyncedAt(context.roomId),
-        isPristine: store.isPristineLocalState,
+        isPristine: s.isPristineLocalState,
         replaceLocalState: context.replaceLocalState,
       });
 
       if (!result.ready) {
-        store.setSyncConflict(result.conflict);
+        s.setSyncConflict(result.conflict);
         return false;
       }
 
-      store.setSyncConflict(null);
+      s.setSyncConflict(null);
       if (result.suppressBroadcast) suppressBroadcastOnce();
-      if (result.newLastSyncedAt !== undefined) markLastSyncedAt(result.newLastSyncedAt);
+      if (result.newLastSyncedAt !== undefined) s.markLastSyncedAt(result.newLastSyncedAt);
       if (result.applyState) {
-        store.applyRemoteState(result.applyState);
+        s.applyRemoteState(result.applyState);
       } else if (context.replaceLocalState && remoteState === null) {
-        store.applyRemoteState(createInitialGameState());
+        s.applyRemoteState(createInitialGameState());
       }
       return true;
     },
-    [markLastSyncedAt],
+    [store],
   );
 
   const handleSyncMessage = useCallback(
     (remoteState: GameState) => {
-      const store = useGameStore.getState();
+      const s = store.getState();
       const result = resolveRemoteUpdate({
-        localState: store.gameState,
+        localState: s.gameState,
         remoteState,
-        activeConflict: store.syncConflict,
+        activeConflict: s.syncConflict,
       });
 
       switch (result.action) {
         case 'apply':
           suppressBroadcastOnce();
-          markLastSyncedAt(result.lastSyncedAt);
-          store.applyRemoteState(result.state);
+          s.markLastSyncedAt(result.lastSyncedAt);
+          s.applyRemoteState(result.state);
           break;
         case 'update-conflict':
-          store.updateConflictServerState(result.serverState);
+          s.updateConflictServerState(result.serverState);
           break;
         case 'mark-synced':
-          markLastSyncedAt(result.lastSyncedAt);
+          s.markLastSyncedAt(result.lastSyncedAt);
           break;
         case 'ignore':
           break;
       }
     },
-    [markLastSyncedAt],
+    [store],
   );
 
   // --- Connection ---
@@ -222,14 +145,13 @@ export const usePeerSync = () => {
         throw new Error('Bitte eine gültige Raum-ID eingeben.');
       }
 
-      syncModeRef.current = 'sync';
-      setSyncMode('sync');
-      storeSyncMode('sync');
+      const s = store.getState();
+      s.setSyncMode('sync');
 
       if (
         socketRef.current &&
         socketRef.current.room === nextRoomId &&
-        connectionStatusRef.current === 'connected'
+        s.connectionStatus === 'connected'
       ) {
         return;
       }
@@ -244,10 +166,9 @@ export const usePeerSync = () => {
       };
 
       closeSocket();
-      updateRoom(nextRoomId);
-      updateConnectionStatus('connecting');
+      store.getState().updateRoom(nextRoomId);
+      store.getState().setConnectionStatus('connecting');
       hasReceivedInitialStateRef.current = false;
-      setSyncReadyBoth(false);
 
       await new Promise<void>((resolve, reject) => {
         let isSettled = false;
@@ -257,7 +178,7 @@ export const usePeerSync = () => {
           isSettled = true;
           socket.close();
           if (socketRef.current === socket) socketRef.current = null;
-          updateConnectionStatus('disconnected');
+          store.getState().setConnectionStatus('disconnected');
           reject(new Error('Verbindungs-Timeout zum Raum.'));
         }, 10000);
 
@@ -270,10 +191,10 @@ export const usePeerSync = () => {
         socketRef.current = socket;
 
         socket.addEventListener('open', () => {
-          if (socketRef.current !== socket || syncModeRef.current !== 'sync') return;
+          if (socketRef.current !== socket || store.getState().syncMode !== 'sync') return;
           window.clearTimeout(timeout);
-          updateConnectionStatus('connected');
-          setSyncReadyBoth(false);
+          store.getState().setConnectionStatus('connected');
+          store.getState().setSyncReady(false);
           if (!isSettled) {
             isSettled = true;
             resolve();
@@ -281,7 +202,7 @@ export const usePeerSync = () => {
         });
 
         socket.addEventListener('message', (event) => {
-          if (socketRef.current !== socket || syncModeRef.current !== 'sync') return;
+          if (socketRef.current !== socket || store.getState().syncMode !== 'sync') return;
           try {
             const message = JSON.parse(String(event.data)) as SyncMessage<GameState>;
 
@@ -294,7 +215,7 @@ export const usePeerSync = () => {
               const isReady = handleInitialStateMessage(message.state, context);
               pendingReplaceLocalStateRef.current = false;
               initialStateContextRef.current = { replaceLocalState: false, roomId: nextRoomId };
-              setSyncReadyBoth(isReady);
+              store.getState().setSyncReady(isReady);
             }
 
             if (message.type === 'sync' && hasReceivedInitialStateRef.current) {
@@ -302,7 +223,7 @@ export const usePeerSync = () => {
             }
 
             if (message.type === 'presence') {
-              setConnectedPeers(message.peers);
+              store.getState().setConnectedPeers(message.peers);
             }
           } catch (error) {
             console.warn('Invalid sync message:', error);
@@ -311,9 +232,7 @@ export const usePeerSync = () => {
 
         socket.addEventListener('close', () => {
           if (socketRef.current !== socket) return;
-          updateConnectionStatus('disconnected');
-          setSyncReadyBoth(false);
-          setConnectedPeers([]);
+          store.getState().resetSyncConnection();
         });
 
         socket.addEventListener('error', () => {
@@ -323,20 +242,13 @@ export const usePeerSync = () => {
             isSettled = true;
             socket.close();
             if (socketRef.current === socket) socketRef.current = null;
-            updateConnectionStatus('disconnected');
+            store.getState().setConnectionStatus('disconnected');
             reject(new Error('Fehler beim Verbinden mit dem Raum.'));
           }
         });
       });
     },
-    [
-      closeSocket,
-      handleInitialStateMessage,
-      handleSyncMessage,
-      setSyncReadyBoth,
-      updateConnectionStatus,
-      updateRoom,
-    ],
+    [closeSocket, handleInitialStateMessage, handleSyncMessage, store],
   );
 
   // --- Startup ---
@@ -351,9 +263,9 @@ export const usePeerSync = () => {
       clearSharedRoomParam();
     }
 
-    updateRoom(initialRoomId);
+    store.getState().updateRoom(initialRoomId);
 
-    if (syncModeRef.current === 'sync') {
+    if (store.getState().syncMode === 'sync') {
       void connectToRoom(initialRoomId, {
         replaceLocalState: Boolean(sharedRoomId),
       }).catch((error) => {
@@ -362,29 +274,31 @@ export const usePeerSync = () => {
     }
 
     return () => closeSocket();
-  }, [closeSocket, connectToRoom, updateRoom]);
+  }, [closeSocket, connectToRoom, store]);
 
   // --- Broadcast game state changes ---
 
   const broadcastState = useCallback(
     (state: GameState) => {
       const socket = socketRef.current;
+      const { isSyncReady, syncMode } = store.getState();
       if (
         !socket ||
         socket.readyState !== WebSocket.OPEN ||
-        !isSyncReadyRef.current ||
-        syncModeRef.current !== 'sync'
+        !isSyncReady ||
+        syncMode !== 'sync'
       ) {
         return false;
       }
       socket.send(JSON.stringify({ type: 'sync', state } satisfies SyncMessage));
-      markLastSyncedAt(state.updatedAt);
+      store.getState().markLastSyncedAt(state.updatedAt);
       return true;
     },
-    [markLastSyncedAt],
+    [store],
   );
 
   const gameState = useGameStore((s) => s.gameState);
+  const isSyncReady = useGameStore((s) => s.isSyncReady);
 
   useEffect(() => {
     if (!isSyncReady) return;
@@ -396,52 +310,36 @@ export const usePeerSync = () => {
 
   const connectToPeer = useCallback(
     (remotePeerId: string) => {
-      useGameStore.getState().setSyncConflict(null);
+      store.getState().setSyncConflict(null);
       return connectToRoom(remotePeerId, { replaceLocalState: true });
     },
-    [connectToRoom],
+    [connectToRoom, store],
   );
 
   const resetPeerId = useCallback(() => {
     const newRoomId = generateRoomId();
-    if (syncModeRef.current === 'sync') {
+    if (store.getState().syncMode === 'sync') {
       void connectToRoom(newRoomId).catch((error) => {
         console.error('Unable to create a new room:', error);
       });
       return;
     }
-    updateRoom(newRoomId);
+    store.getState().updateRoom(newRoomId);
     closeSocket();
-  }, [closeSocket, connectToRoom, updateRoom]);
+  }, [closeSocket, connectToRoom, store]);
 
   const workOffline = useCallback(() => {
-    syncModeRef.current = 'offline';
-    setSyncMode('offline');
-    storeSyncMode('offline');
+    const s = store.getState();
+    s.setSyncMode('offline');
+    s.setSyncConflict(null);
     closeSocket();
-    useGameStore.getState().setSyncConflict(null);
-  }, [closeSocket]);
+  }, [closeSocket, store]);
 
   const resumeSync = useCallback(async () => {
-    useGameStore.getState().setSyncConflict(null);
-    const targetRoomId = roomIdRef.current || readStoredRoomId() || generateRoomId();
+    store.getState().setSyncConflict(null);
+    const targetRoomId = store.getState().roomId || readStoredRoomId() || generateRoomId();
     await connectToRoom(targetRoomId);
-  }, [connectToRoom]);
+  }, [connectToRoom, store]);
 
-  return {
-    peerId: roomId,
-    connectedPeers,
-    isConnecting: connectionStatus === 'connecting',
-    isSyncReady,
-    connectionStatus,
-    syncMode,
-    lastSyncedAt,
-    connectToPeer,
-    resetPeerId,
-    broadcastState,
-    setSyncReady: setSyncReadyBoth,
-    markLastSyncedAt,
-    workOffline,
-    resumeSync,
-  };
+  return { connectToPeer, resetPeerId, workOffline, resumeSync };
 };

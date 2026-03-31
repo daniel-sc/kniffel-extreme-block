@@ -45,8 +45,9 @@ const Index = () => {
   const removePlayer = useGameStore((s) => s.removePlayer);
   const resetGame = useGameStore((s) => s.resetGame);
   const revancheGame = useGameStore((s) => s.revancheGame);
-  const setSyncConflict = useGameStore((s) => s.setSyncConflict);
-  const applyRemoteState = useGameStore((s) => s.applyRemoteState);
+  const syncMode = useGameStore((s) => s.syncMode);
+  const connectionStatus = useGameStore((s) => s.connectionStatus);
+  const lastSyncedAt = useGameStore((s) => s.lastSyncedAt);
 
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const lastAddedPlayerId = useRef<string | null>(null);
@@ -58,20 +59,7 @@ const Index = () => {
     overflowX: 'visible',
   };
 
-  const {
-    peerId,
-    connectedPeers,
-    isConnecting,
-    connectionStatus,
-    syncMode,
-    lastSyncedAt,
-    connectToPeer,
-    resetPeerId,
-    setSyncReady,
-    markLastSyncedAt,
-    workOffline,
-    resumeSync,
-  } = usePeerSync();
+  const { connectToPeer, resetPeerId, workOffline, resumeSync } = usePeerSync();
 
   // --- Revanche button visibility ---
 
@@ -156,17 +144,20 @@ const Index = () => {
   // --- Conflict resolution ---
 
   const handleKeepLocalState = () => {
-    setSyncConflict(null);
-    setSyncReady(true);
+    const s = useGameStore.getState();
+    s.setSyncConflict(null);
+    s.setSyncReady(true);
   };
 
   const handleKeepServerState = () => {
-    if (!syncConflict) return;
+    const s = useGameStore.getState();
+    const conflict = s.syncConflict;
+    if (!conflict) return;
     suppressBroadcastOnce();
-    markLastSyncedAt(syncConflict.serverState.updatedAt);
-    applyRemoteState(syncConflict.serverState);
-    setSyncConflict(null);
-    setSyncReady(true);
+    s.markLastSyncedAt(conflict.serverState.updatedAt);
+    s.applyRemoteState(conflict.serverState);
+    s.setSyncConflict(null);
+    s.setSyncReady(true);
   };
 
   // --- Player management ---
@@ -211,11 +202,6 @@ const Index = () => {
             </div>
             <div className="flex gap-2 items-center relative">
               <ShareDialog
-                roomId={peerId}
-                remoteCount={connectedPeers.length}
-                isConnecting={isConnecting}
-                syncMode={syncMode}
-                connectionStatus={connectionStatus}
                 onConnect={connectToPeer}
                 onResetRoomId={resetPeerId}
                 onWorkOffline={workOffline}

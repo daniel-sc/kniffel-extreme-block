@@ -2,10 +2,20 @@ import { create } from 'zustand';
 import { GameState, GameCell, Player, CURRENT_VERSION } from '@/types/game';
 import type { SyncConflictState } from '@/utils/syncResolution';
 
+// --- Types ---
+
+export type SyncMode = 'sync' | 'offline';
+export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
+
+// --- Storage keys ---
+
 const GAME_STORAGE_KEY = 'kniffel-extreme-game';
 const GAME_PRISTINE_STORAGE_KEY = 'kniffel-extreme-game-pristine';
+const ROOM_ID_STORAGE_KEY = 'kniffel-extreme-sync-room-id';
+const SYNC_MODE_STORAGE_KEY = 'kniffel-extreme-sync-mode';
+const LAST_SYNCED_AT_STORAGE_PREFIX = 'kniffel-extreme-sync-last-synced-at';
 
-// --- Helpers ---
+// --- Game helpers ---
 
 const createEmptyCell = (): GameCell => ({ value: null, struck: false });
 const createUpdatedAt = () => new Date().toISOString();
@@ -65,7 +75,7 @@ const touchGameState = (state: GameState): GameState => ({
   updatedAt: createUpdatedAt(),
 });
 
-// --- localStorage ---
+// --- localStorage helpers ---
 
 const readStoredPristineState = () => {
   const storedPristine = localStorage.getItem(GAME_PRISTINE_STORAGE_KEY);
@@ -86,6 +96,26 @@ const loadInitialGameState = (): GameState => {
   return createInitialGameState();
 };
 
+const readStoredSyncMode = (): SyncMode => {
+  if (typeof window === 'undefined') return 'sync';
+  return localStorage.getItem(SYNC_MODE_STORAGE_KEY) === 'offline' ? 'offline' : 'sync';
+};
+
+export const readStoredLastSyncedAt = (roomId: string) => {
+  if (typeof window === 'undefined' || !roomId) return null;
+  return localStorage.getItem(`${LAST_SYNCED_AT_STORAGE_PREFIX}:${roomId}`);
+};
+
+const storeLastSyncedAt = (roomId: string, updatedAt: string | null) => {
+  if (typeof window === 'undefined' || !roomId) return;
+  const key = `${LAST_SYNCED_AT_STORAGE_PREFIX}:${roomId}`;
+  if (updatedAt) {
+    localStorage.setItem(key, updatedAt);
+  } else {
+    localStorage.removeItem(key);
+  }
+};
+
 // --- Broadcast suppression (imperative flag, not reactive) ---
 
 let _suppressNextBroadcast = false;
@@ -103,10 +133,11 @@ export const consumeBroadcastSuppression = () => {
 // --- Store ---
 
 interface GameStore {
+  // Game state
   gameState: GameState;
   isPristineLocalState: boolean;
-  syncConflict: SyncConflictState | null;
 
+  // Game actions
   updateCell: (
     playerId: string,
     section: 'upper' | 'lower',
@@ -119,15 +150,34 @@ interface GameStore {
   resetGame: () => void;
   revancheGame: () => void;
 
+  // Sync state
+  roomId: string;
+  connectionStatus: ConnectionStatus;
+  isSyncReady: boolean;
+  connectedPeers: string[];
+  syncMode: SyncMode;
+  lastSyncedAt: string | null;
+  syncConflict: SyncConflictState | null;
+
+  // Sync actions
+  setConnectionStatus: (status: ConnectionStatus) => void;
+  setSyncReady: (ready: boolean) => void;
+  setConnectedPeers: (peers: string[]) => void;
+  updateRoom: (roomId: string) => void;
+  markLastSyncedAt: (updatedAt: string | null) => void;
+  setSyncMode: (mode: SyncMode) => void;
+  resetSyncConnection: () => void;
+
+  // Remote state actions
   applyRemoteState: (state: GameState) => void;
   setSyncConflict: (conflict: SyncConflictState | null) => void;
   updateConflictServerState: (serverState: GameState) => void;
 }
 
 export const useGameStore = create<GameStore>()((set, get) => ({
+  // --- Game state ---
   gameState: loadInitialGameState(),
   isPristineLocalState: readStoredPristineState(),
-  syncConflict: null,
 
   updateCell: (playerId, section, field, updates) => {
     set((s) => ({
@@ -203,13 +253,45 @@ export const useGameStore = create<GameStore>()((set, get) => ({
     });
   },
 
+  // --- Sync state ---
+  roomId: '',
+  connectionStatus: 'disconnected',
+  isSyncReady: false,
+  connectedPeers: [],
+  syncMode: readStoredSyncMode(),
+  lastSyncedAt: null,
+  syncConflict: null,
+
+  setConnectionStatus: (status) => set({ connectionStatus: status }),
+  setSyncReady: (ready) => set({ isSyncReady: ready }),
+  setConnectedPeers: (peers) => set({ connectedPeers: peers }),
+
+  updateRoom: (nextRoomId) => {
+    localStorage.setItem(ROOM_ID_STORAGE_KEY, nextRoomId);
+    set({ roomId: nextRoomId, lastSyncedAt: readStoredLastSyncedAt(nextRoomId) });
+  },
+
+  markLastSyncedAt: (updatedAt) => {
+    const { roomId } = get();
+    if (roomId) storeLastSyncedAt(roomId, updatedAt);
+    set({ lastSyncedAt: updatedAt });
+  },
+
+  setSyncMode: (mode) => {
+    localStorage.setItem(SYNC_MODE_STORAGE_KEY, mode);
+    set({ syncMode: mode });
+  },
+
+  resetSyncConnection: () => {
+    set({ connectionStatus: 'disconnected', isSyncReady: false, connectedPeers: [] });
+  },
+
+  // --- Remote state ---
   applyRemoteState: (state) => {
     set({ isPristineLocalState: false, gameState: normalizeGameState(state) });
   },
 
-  setSyncConflict: (conflict) => {
-    set({ syncConflict: conflict });
-  },
+  setSyncConflict: (conflict) => set({ syncConflict: conflict }),
 
   updateConflictServerState: (serverState) => {
     set((s) => {
