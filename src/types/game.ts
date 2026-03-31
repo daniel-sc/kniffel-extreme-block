@@ -40,6 +40,7 @@ export interface Player {
 
 export interface GameState {
   version: number;
+  updatedAt: string;
   players: Player[];
   gameId?: string;
 }

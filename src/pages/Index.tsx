@@ -1,14 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useElementSize } from '@/hooks/useElementSize';
 import { Input } from '@/components/ui/input';
 import { ScoreRow } from '@/components/ScoreRow';
 import { TotalRow } from '@/components/TotalRow';
 import { ShareDialog } from '@/components/ShareDialog';
 import { ShareNutsAboutStatsButton } from '@/components/ShareNutsAboutStatsButton';
-import { useGameState } from '@/hooks/useGameState';
+import { createInitialGameState, useGameState } from '@/hooks/useGameState';
 import { usePeerSync } from '@/hooks/usePeerSync';
+import type { InitialStateContext } from '@/hooks/usePeerSync';
 import { useTouchLongPress } from '@/hooks/useTouchLongPress';
 import { FIXED_SCORES, GameState } from '@/types/game';
 import {
@@ -22,14 +31,47 @@ import {
 import { cn } from '@/lib/utils';
 import { Dices, RotateCcw, Plus, X, RefreshCcw } from 'lucide-react';
 
+interface SyncConflictState {
+  localState: GameState;
+  serverState: GameState;
+  lastSyncedAt: string | null;
+}
+
+const ensureRevision = (state: GameState): GameState => {
+  if (state.updatedAt) {
+    return state;
+  }
+
+  return {
+    ...state,
+    updatedAt: new Date().toISOString(),
+  };
+};
+
+const formatTimestamp = (timestamp: string | null) => {
+  if (!timestamp) {
+    return 'Noch nie';
+  }
+
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return timestamp;
+  }
+
+  return `${date.toLocaleString()} (${timestamp})`;
+};
+
 const Index = () => {
-  const { gameState, setGameState, updateCell, updatePlayerName, addPlayer, removePlayer, resetGame, revancheGame } = useGameState();
+  const { gameState, isPristineLocalState, setGameState, updateCell, updatePlayerName, addPlayer, removePlayer, resetGame, revancheGame } = useGameState();
 
 
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const latestGameStateRef = useRef(gameState);
+  const lastSyncedAtRef = useRef<string | null>(null);
   const suppressNextBroadcastRef = useRef(false);
   const lastAddedPlayerId = useRef<string | null>(null);
+  const [syncConflict, setSyncConflict] = useState<SyncConflictState | null>(null);
+  const syncConflictRef = useRef<SyncConflictState | null>(syncConflict);
   const { ref: headerRef, size: headerSize } = useElementSize<HTMLDivElement>();
   const headerOffset = headerSize.height || 88;
   const pageStyles: CSSProperties = { paddingTop: headerOffset, overflowY: 'auto', overflowX: 'visible' };
@@ -166,6 +208,8 @@ const Index = () => {
   }, []);
 
 
+  syncConflictRef.current = syncConflict;
+
   const handleAddPlayer = () => {
     const newPlayerId = addPlayer();
     if (newPlayerId) {
@@ -179,27 +223,121 @@ const Index = () => {
     return JSON.stringify(left) === JSON.stringify(right);
   };
 
-  const handleInitialState = (remoteState: GameState | null) => {
+  const handleInitialState = (remoteState: GameState | null, context: InitialStateContext) => {
+    if (context.replaceLocalState) {
+      setSyncConflict(null);
+
+      if (remoteState === null) {
+        suppressNextBroadcastRef.current = false;
+        markLastSyncedAt(null);
+        setGameState(createInitialGameState());
+        return true;
+      }
+
+      const normalizedRemoteState = ensureRevision(remoteState);
+      suppressNextBroadcastRef.current = true;
+      markLastSyncedAt(normalizedRemoteState.updatedAt);
+      setGameState(normalizedRemoteState);
+      return true;
+    }
+
     if (remoteState === null) {
-      return;
+      setSyncConflict(null);
+      return true;
     }
 
-    suppressNextBroadcastRef.current = true;
+    const normalizedRemoteState = ensureRevision(remoteState);
+    const currentState = latestGameStateRef.current;
+    const localRevision = currentState.updatedAt;
+    const serverRevision = normalizedRemoteState.updatedAt;
 
-    if (areGameStatesEqual(latestGameStateRef.current, remoteState)) {
-      return;
+    if (localRevision === serverRevision) {
+      suppressNextBroadcastRef.current = true;
+      setSyncConflict(null);
+      markLastSyncedAt(serverRevision);
+
+      if (!areGameStatesEqual(currentState, normalizedRemoteState)) {
+        setGameState(normalizedRemoteState);
+      }
+
+      return true;
     }
 
-    setGameState(remoteState);
+    const baseRevision = lastSyncedAtRef.current;
+
+    if (baseRevision && baseRevision === serverRevision && localRevision !== baseRevision) {
+      setSyncConflict(null);
+      return true;
+    }
+
+    if (baseRevision && baseRevision === localRevision && serverRevision !== baseRevision) {
+      suppressNextBroadcastRef.current = true;
+      setSyncConflict(null);
+      markLastSyncedAt(serverRevision);
+
+      if (!areGameStatesEqual(currentState, normalizedRemoteState)) {
+        setGameState(normalizedRemoteState);
+      }
+
+      return true;
+    }
+
+    if (!baseRevision && isPristineLocalState) {
+      suppressNextBroadcastRef.current = true;
+      setSyncConflict(null);
+      markLastSyncedAt(serverRevision);
+
+      if (!areGameStatesEqual(currentState, normalizedRemoteState)) {
+        setGameState(normalizedRemoteState);
+      }
+
+      return true;
+    }
+
+    setSyncConflict({
+      localState: currentState,
+      serverState: normalizedRemoteState,
+      lastSyncedAt: baseRevision,
+    });
+
+    return false;
   };
 
   const handleRemoteUpdate = (remoteState: GameState) => {
-    const currentState = latestGameStateRef.current;
-    if (areGameStatesEqual(currentState, remoteState)) {
+    const normalizedRemoteState = ensureRevision(remoteState);
+    const activeConflict = syncConflictRef.current;
+
+    if (activeConflict) {
+      if (areGameStatesEqual(activeConflict.serverState, normalizedRemoteState)) {
+        return;
+      }
+
+      setSyncConflict((currentConflict) => {
+        if (!currentConflict) {
+          return currentConflict;
+        }
+
+        if (areGameStatesEqual(currentConflict.serverState, normalizedRemoteState)) {
+          return currentConflict;
+        }
+
+        return {
+          ...currentConflict,
+          serverState: normalizedRemoteState,
+        };
+      });
       return;
     }
+
+    const currentState = latestGameStateRef.current;
+    if (areGameStatesEqual(currentState, normalizedRemoteState)) {
+      markLastSyncedAt(normalizedRemoteState.updatedAt);
+      return;
+    }
+
     suppressNextBroadcastRef.current = true;
-    setGameState(remoteState);
+    markLastSyncedAt(normalizedRemoteState.updatedAt);
+    setGameState(normalizedRemoteState);
   };
 
   const {
@@ -207,18 +345,63 @@ const Index = () => {
     connectedPeers,
     isConnecting,
     isSyncReady,
+    connectionStatus,
+    syncMode,
+    lastSyncedAt,
     connectToPeer,
     resetPeerId,
     broadcastState,
+    setSyncReady,
+    markLastSyncedAt,
+    workOffline,
+    resumeSync,
   } = usePeerSync(handleInitialState, handleRemoteUpdate);
 
   const handleConnectToPeer = (remotePeerId: string) => {
+    setSyncConflict(null);
     return connectToPeer(remotePeerId);
+  };
+
+  const handleWorkOffline = () => {
+    setSyncConflict(null);
+    workOffline();
+  };
+
+  const handleResumeSync = () => {
+    setSyncConflict(null);
+    return resumeSync();
+  };
+
+  const handleKeepLocalState = () => {
+    setSyncConflict(null);
+    setSyncReady(true);
+  };
+
+  const handleKeepServerState = () => {
+    if (!syncConflict) {
+      return;
+    }
+
+    suppressNextBroadcastRef.current = true;
+    markLastSyncedAt(syncConflict.serverState.updatedAt);
+    setGameState(syncConflict.serverState);
+    setSyncConflict(null);
+    setSyncReady(true);
   };
 
   useEffect(() => {
     latestGameStateRef.current = gameState;
   }, [gameState]);
+
+  useEffect(() => {
+    lastSyncedAtRef.current = lastSyncedAt;
+  }, [lastSyncedAt]);
+
+  useEffect(() => {
+    if (syncMode === 'offline') {
+      setSyncConflict(null);
+    }
+  }, [syncMode]);
 
   // Wait until the server has sent the room's initial snapshot (or null for an
   // empty room) before publishing local changes.
@@ -232,6 +415,9 @@ const Index = () => {
     }
     broadcastState(gameState);
   }, [gameState, isSyncReady, broadcastState]);
+
+  const showOfflineBanner = syncMode === 'sync' && connectionStatus !== 'connected';
+  const hasOfflineChanges = lastSyncedAt !== gameState.updatedAt;
 
   useEffect(() => {
     if (!lastAddedPlayerId.current) return;
@@ -257,8 +443,12 @@ const Index = () => {
                 roomId={peerId}
                 remoteCount={connectedPeers.length}
                 isConnecting={isConnecting}
+                syncMode={syncMode}
+                connectionStatus={connectionStatus}
                 onConnect={handleConnectToPeer}
                 onResetRoomId={resetPeerId}
+                onWorkOffline={handleWorkOffline}
+                onResumeSync={handleResumeSync}
               />
               <ShareNutsAboutStatsButton gameState={gameState} />
 
@@ -300,6 +490,12 @@ const Index = () => {
           </div>
         </div>
       </header>
+
+      {showOfflineBanner ? (
+        <div className="mx-2 mt-2 rounded-lg border border-amber-500/50 bg-amber-100 px-4 py-3 text-sm text-amber-950 shadow-sm dark:bg-amber-950 dark:text-amber-100">
+          {hasOfflineChanges ? 'Offline (changes)' : 'Offline (no changes)'}
+        </div>
+      ) : null}
 
 
       <main className="container max-w-full mx-auto px-0 py-4">
@@ -422,6 +618,41 @@ const Index = () => {
           </div>
       </div>
       </main>
+
+      <Dialog open={syncConflict !== null}>
+        <DialogContent className="[&>button]:hidden">
+          <DialogHeader>
+            <DialogTitle>Konflikt beim Wiederverbinden</DialogTitle>
+            <DialogDescription>
+              Sowohl dein lokaler Stand als auch der Raum wurden seit dem letzten gemeinsamen Stand geaendert. Waehle aus, welche Version erhalten bleiben soll.
+            </DialogDescription>
+          </DialogHeader>
+
+          {syncConflict ? (
+            <div className="space-y-3 text-sm">
+              <div className="rounded-md border p-3">
+                <p className="font-medium">Lokale Version</p>
+                <p className="text-muted-foreground">{formatTimestamp(syncConflict.localState.updatedAt)}</p>
+              </div>
+              <div className="rounded-md border p-3">
+                <p className="font-medium">Raum-Version</p>
+                <p className="text-muted-foreground">{formatTimestamp(syncConflict.serverState.updatedAt)}</p>
+              </div>
+              <div className="rounded-md border p-3">
+                <p className="font-medium">Zuletzt synchronisiert</p>
+                <p className="text-muted-foreground">{formatTimestamp(syncConflict.lastSyncedAt)}</p>
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={handleKeepServerState}>
+              Raum-Version behalten
+            </Button>
+            <Button onClick={handleKeepLocalState}>Lokal behalten und synchronisieren</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
