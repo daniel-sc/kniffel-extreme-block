@@ -88,7 +88,7 @@ export const usePeerSync = () => {
         replaceLocalState: context.replaceLocalState,
       });
 
-      if (!result.ready) {
+      if (result.ready === false) {
         s.setSyncConflict(result.conflict);
         return false;
       }

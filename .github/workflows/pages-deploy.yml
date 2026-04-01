@@ -30,6 +30,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Type check
+        run: bun run typecheck
+
       - name: Deploy production worker
         run: bun run deploy:production
 
@@ -48,6 +51,9 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      - name: Type check
+        run: bun run typecheck
 
       - name: Deploy staging worker
         run: bun run deploy:staging
