@@ -1,11 +1,15 @@
 # Kniffel Extreme Block
 
+This repository is Bun-first. Use `bun install` and `bun run <script>` for local development, CI, and deployments.
+
 ## Development
 
 ```sh
-npm install
-npm run dev
+bun install
+bun run dev
 ```
+
+Recommended Bun version: `1.3.11` (see `.bun-version`).
 
 ## Realtime sync
 
@@ -38,13 +42,13 @@ The client still falls back to legacy `VITE_PARTYKIT_HOST` and `VITE_PARTYKIT_PA
 ### 2) Run the local sync worker
 
 ```sh
-npm run sync:dev
+bun run sync:dev
 ```
 
 ### 3) Run the frontend dev server
 
 ```sh
-npm run dev
+bun run dev
 ```
 
 ## Deploy to Cloudflare
@@ -52,14 +56,14 @@ npm run dev
 ```sh
 CLOUDFLARE_ACCOUNT_ID=<your-account-id> \
 CLOUDFLARE_API_TOKEN=<your-api-token> \
-npm run deploy
+bun run deploy
 ```
 
 Environment-specific deploys:
 
 ```sh
-npm run deploy:production
-npm run deploy:staging
+bun run deploy:production
+bun run deploy:staging
 ```
 
 `wrangler.jsonc` deploys a single worker that:
@@ -75,7 +79,7 @@ Custom domains are configured directly in `wrangler.jsonc` per Wrangler environm
 
 That means HTTPS is provisioned by Cloudflare on deploy, instead of relying on manual dashboard routing.
 
-`wrangler.sync-dev.jsonc` is the local worker config used by `npm run sync:dev`.
+`wrangler.sync-dev.jsonc` is the local worker config used by `bun run sync:dev`.
 
 ## Stable room behavior
 
@@ -88,7 +92,7 @@ That means HTTPS is provisioned by Cloudflare on deploy, instead of relying on m
 
 ## GitHub Actions deploys
 
-`.github/workflows/pages-deploy.yml` deploys the unified worker for two stable environments:
+`.github/workflows/pages-deploy.yml` installs Bun, uses `bun.lock` as the authoritative lockfile, and deploys the unified worker for two stable environments:
 
 - `main` branch -> `production`
 - non-`main` branches -> shared `staging`

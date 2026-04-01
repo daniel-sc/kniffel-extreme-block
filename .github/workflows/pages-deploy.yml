@@ -22,20 +22,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
-          cache: npm
+          bun-version: 1.3.11
 
       - name: Install dependencies
-        run: npm ci
-
-      - name: Build production worker assets
-        run: npm run build
+        run: bun install --frozen-lockfile
 
       - name: Deploy production worker
-        run: npx wrangler deploy --env production
+        run: bun run deploy:production
 
   deploy-staging:
     if: github.ref_name != 'main'
@@ -45,17 +41,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          node-version: 22
-          cache: npm
+          bun-version: 1.3.11
 
       - name: Install dependencies
-        run: npm ci
-
-      - name: Build staging worker assets
-        run: npm run build
+        run: bun install --frozen-lockfile
 
       - name: Deploy staging worker
-        run: npx wrangler deploy --env staging
+        run: bun run deploy:staging
