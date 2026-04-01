@@ -8,6 +8,7 @@ import {
   consumeBroadcastSuppression,
 } from '@/store/gameStore';
 import { resolveInitialState, resolveRemoteUpdate } from '@/utils/syncResolution';
+import { toast } from '@/hooks/use-toast';
 
 const ROOM_PARAM_KEY = 'room';
 const DEFAULT_PARTY_NAME = 'kniffel-sync';
@@ -105,12 +106,21 @@ export const usePeerSync = () => {
       const result = resolveRemoteUpdate({
         localState: s.gameState,
         remoteState,
+        lastSyncedAt: s.lastSyncedAt,
         activeConflict: s.syncConflict,
       });
 
       switch (result.action) {
         case 'apply':
           s.applyRemoteSync(result.state, result.lastSyncedAt);
+          break;
+        case 'apply-outdated':
+          s.applyRemoteSync(result.state, result.lastSyncedAt);
+          toast({
+            title: 'Gleichzeitige Änderung',
+            description:
+              'Ein anderer Spieler hat gleichzeitig bearbeitet — deine letzte Eingabe wurde überschrieben.',
+          });
           break;
         case 'update-conflict':
           s.updateConflictServerState(result.serverState);

@@ -193,6 +193,10 @@ When joining via a `?room=` link, the parameter is removed from the URL (without
 
 When multiple clients are connected and editing simultaneously, there is **no merge**. The last state received by the server wins. Clients apply each other's full state on arrival. This means concurrent edits to different fields can still overwrite each other.
 
+**Outdated update detection**: when a client receives a remote state whose revision is older than the client's last synced revision, the updates have crossed on the wire. The remote state is still applied (last-write-wins), but a **toast notification** informs the user that their last edit was overwritten by a concurrent change. The user can then re-enter the overwritten value.
+
+This detection is **asymmetric**: in a two-player scenario, only the player who edited second sees the toast. The player who edited first receives a newer-looking update and cannot distinguish it from a normal remote edit. In practice this is sufficient — the notified player re-enters their edit on top of the other player's state, producing a combined state that is broadcast to both players.
+
 ### 6.8 Presence
 
 Connected peers are tracked per room. The server notifies all clients when a peer joins or leaves. Peer identities are anonymous transport-level session IDs, not user accounts.

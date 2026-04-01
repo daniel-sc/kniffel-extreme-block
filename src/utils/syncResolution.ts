@@ -102,6 +102,7 @@ export function resolveInitialState(params: {
 
 export type RemoteUpdateResolution =
   | { action: 'apply'; state: GameState; lastSyncedAt: string }
+  | { action: 'apply-outdated'; state: GameState; lastSyncedAt: string }
   | { action: 'update-conflict'; serverState: GameState }
   | { action: 'mark-synced'; lastSyncedAt: string }
   | { action: 'ignore' };
@@ -109,6 +110,7 @@ export type RemoteUpdateResolution =
 export function resolveRemoteUpdate(params: {
   localState: GameState;
   remoteState: GameState;
+  lastSyncedAt: string | null;
   activeConflict: SyncConflictState | null;
 }): RemoteUpdateResolution {
   const normalized = ensureRevision(params.remoteState);
@@ -122,6 +124,15 @@ export function resolveRemoteUpdate(params: {
 
   if (areGameStatesEqual(params.localState, normalized)) {
     return { action: 'mark-synced', lastSyncedAt: normalized.updatedAt };
+  }
+
+  // Detect outdated remote updates: when the incoming state has an older
+  // revision than our last synced state, both sides edited concurrently and
+  // the updates crossed on the wire.  The state is still applied (last-write-
+  // wins is preserved) but the caller can surface a toast so the user knows
+  // their last edit was overwritten and should be re-entered.
+  if (params.lastSyncedAt && normalized.updatedAt < params.lastSyncedAt) {
+    return { action: 'apply-outdated', state: normalized, lastSyncedAt: normalized.updatedAt };
   }
 
   return { action: 'apply', state: normalized, lastSyncedAt: normalized.updatedAt };

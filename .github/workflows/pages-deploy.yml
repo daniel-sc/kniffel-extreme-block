@@ -33,6 +33,9 @@ jobs:
       - name: Type check
         run: bun run typecheck
 
+      - name: Lint
+        run: bun run lint
+
       - name: Deploy production worker
         run: bun run deploy:production
 
@@ -54,6 +57,9 @@ jobs:
 
       - name: Type check
         run: bun run typecheck
+
+      - name: Lint
+        run: bun run lint
 
       - name: Deploy staging worker
         run: bun run deploy:staging
