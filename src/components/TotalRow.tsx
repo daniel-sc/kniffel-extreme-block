@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Player } from '@/types/game';
 
 interface TotalRowProps {
@@ -8,7 +9,7 @@ interface TotalRowProps {
   stickyBottom?: boolean;
 }
 
-export const TotalRow = ({ label, players, getValue, highlighted = false, stickyBottom = false }: TotalRowProps) => {
+export const TotalRow = memo(({ label, players, getValue, highlighted = false, stickyBottom = false }: TotalRowProps) => {
   return (
     <div
       className={`grid gap-2 ${highlighted ? 'bg-secondary-foreground text-primary border-y border-primary/20' : ''} ${stickyBottom ? 'sticky bottom-0 z-10' : ''}`}
@@ -27,4 +28,4 @@ export const TotalRow = ({ label, players, getValue, highlighted = false, sticky
       ))}
     </div>
   );
-};
+});

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { GameCell, Player } from '@/types/game';
@@ -14,7 +15,7 @@ interface ScoreRowProps {
   fixedPoints?: number;
 }
 
-export const ScoreRow = ({
+export const ScoreRow = memo(({
   label,
   description,
   players,
@@ -94,4 +95,4 @@ export const ScoreRow = ({
       })}
     </div>
   );
-};
+});

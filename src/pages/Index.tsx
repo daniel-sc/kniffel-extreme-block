@@ -15,75 +15,55 @@ import { ScoreRow } from '@/components/ScoreRow';
 import { TotalRow } from '@/components/TotalRow';
 import { ShareDialog } from '@/components/ShareDialog';
 import { ShareNutsAboutStatsButton } from '@/components/ShareNutsAboutStatsButton';
-import { createInitialGameState, useGameState } from '@/hooks/useGameState';
+import { useGameStore } from '@/store/gameStore';
 import { usePeerSync } from '@/hooks/usePeerSync';
-import type { InitialStateContext } from '@/hooks/usePeerSync';
 import { useTouchLongPress } from '@/hooks/useTouchLongPress';
-import { FIXED_SCORES, GameState } from '@/types/game';
+import { FIXED_SCORES } from '@/types/game';
 import {
   calculateUpperSum,
   calculateUpperBonus,
   calculateUpperTotal,
   calculateLowerSum,
-
   calculateGrandTotal,
 } from '@/utils/scoreCalculations';
 import { cn } from '@/lib/utils';
 import { Dices, RotateCcw, Plus, X, RefreshCcw } from 'lucide-react';
 
-interface SyncConflictState {
-  localState: GameState;
-  serverState: GameState;
-  lastSyncedAt: string | null;
-}
-
-const ensureRevision = (state: GameState): GameState => {
-  if (state.updatedAt) {
-    return state;
-  }
-
-  return {
-    ...state,
-    updatedAt: new Date().toISOString(),
-  };
-};
-
 const formatTimestamp = (timestamp: string | null) => {
-  if (!timestamp) {
-    return 'Noch nie';
-  }
-
+  if (!timestamp) return 'Noch nie';
   const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) {
-    return timestamp;
-  }
-
+  if (Number.isNaN(date.getTime())) return timestamp;
   return `${date.toLocaleString()} (${timestamp})`;
 };
 
 const Index = () => {
-  const { gameState, isPristineLocalState, setGameState, updateCell, updatePlayerName, addPlayer, removePlayer, resetGame, revancheGame } = useGameState();
-
+  const gameState = useGameStore((s) => s.gameState);
+  const syncConflict = useGameStore((s) => s.syncConflict);
+  const updateCell = useGameStore((s) => s.updateCell);
+  const updatePlayerName = useGameStore((s) => s.updatePlayerName);
+  const addPlayer = useGameStore((s) => s.addPlayer);
+  const removePlayer = useGameStore((s) => s.removePlayer);
+  const resetGame = useGameStore((s) => s.resetGame);
+  const revancheGame = useGameStore((s) => s.revancheGame);
+  const syncMode = useGameStore((s) => s.syncMode);
+  const connectionStatus = useGameStore((s) => s.connectionStatus);
+  const lastSyncedAt = useGameStore((s) => s.lastSyncedAt);
 
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const latestGameStateRef = useRef(gameState);
-  const lastSyncedAtRef = useRef<string | null>(null);
-  const suppressNextBroadcastRef = useRef(false);
   const lastAddedPlayerId = useRef<string | null>(null);
-  const [syncConflict, setSyncConflict] = useState<SyncConflictState | null>(null);
-  const syncConflictRef = useRef<SyncConflictState | null>(syncConflict);
   const { ref: headerRef, size: headerSize } = useElementSize<HTMLDivElement>();
   const headerOffset = headerSize.height || 88;
-  const pageStyles: CSSProperties = { paddingTop: headerOffset, overflowY: 'auto', overflowX: 'visible' };
+  const pageStyles: CSSProperties = {
+    paddingTop: headerOffset,
+    overflowY: 'auto',
+    overflowX: 'visible',
+  };
+
+  const { connectToPeer, resetPeerId, workOffline, resumeSync } = usePeerSync();
+
+  // --- Revanche button visibility ---
 
   const [isRevancheVisible, setIsRevancheVisible] = useState(false);
-  const revancheContainerClasses = cn(
-    'absolute right-0 top-full mt-2 z-20 transition-all duration-200',
-    'opacity-0 translate-y-1 scale-95 pointer-events-none',
-    isRevancheVisible && 'opacity-100 translate-y-0 scale-100 pointer-events-auto'
-  );
-
-
   const hideRevancheTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearHideTimeout = () => {
@@ -98,14 +78,12 @@ const Index = () => {
     setIsRevancheVisible(true);
   };
 
-
   const hideRevanche = (delay: number = 200) => {
     clearHideTimeout();
     if (delay <= 0) {
       setIsRevancheVisible(false);
       return;
     }
-
     hideRevancheTimeoutRef.current = setTimeout(() => {
       setIsRevancheVisible(false);
       hideRevancheTimeoutRef.current = null;
@@ -128,69 +106,22 @@ const Index = () => {
   } = useTouchLongPress(revealRevancheButton);
 
   const handleResetPointerEnter = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (event.pointerType === 'mouse') {
-      showRevanche();
-    }
+    if (event.pointerType === 'mouse') showRevanche();
     handleResetLongPressPointerEnter(event);
   };
 
-
   const handleResetPointerLeave = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (event.pointerType === 'mouse') {
-      hideRevanche();
-    }
+    if (event.pointerType === 'mouse') hideRevanche();
     handleResetLongPressPointerLeave();
   };
 
-  const handleResetFocus = () => {
-    showRevanche();
-  };
-
-  const handleResetBlur = () => {
-    hideRevanche();
-  };
-
   const handleResetPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (event.pointerType === 'mouse') {
-      return;
-    }
-
+    if (event.pointerType === 'mouse') return;
     handleResetLongPressPointerDown(event);
   };
 
-  const handleResetPointerEnd = () => {
-    handleResetLongPressPointerUp();
-  };
-
-  const handleResetPointerCancel = () => {
-    handleResetLongPressPointerCancel();
-  };
-
-  const handleRevanchePointerEnter = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (event.pointerType === 'mouse') {
-      showRevanche();
-    }
-  };
-
-  const handleRevanchePointerLeave = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (event.pointerType === 'mouse') {
-      hideRevanche();
-    }
-  };
-
-  const handleRevancheFocus = () => {
-    showRevanche();
-  };
-
-  const handleRevancheBlur = () => {
-    hideRevanche();
-  };
-
   const handleResetClick = () => {
-    if (!shouldHandleResetClick()) {
-      return;
-    }
-
+    if (!shouldHandleResetClick()) return;
     hideRevanche(0);
     resetGame();
   };
@@ -201,223 +132,26 @@ const Index = () => {
     resetResetLongPress();
   };
 
-  useEffect(() => {
-    return () => {
-      clearHideTimeout();
-    };
-  }, []);
+  const handleRevanchePointerEnter = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === 'mouse') showRevanche();
+  };
+  const handleRevanchePointerLeave = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.pointerType === 'mouse') hideRevanche();
+  };
 
+  useEffect(() => clearHideTimeout, []);
 
-  syncConflictRef.current = syncConflict;
+  // --- Conflict resolution ---
+
+  const handleKeepLocalState = () => useGameStore.getState().resolveConflictKeepLocal();
+  const handleKeepServerState = () => useGameStore.getState().resolveConflictKeepServer();
+
+  // --- Player management ---
 
   const handleAddPlayer = () => {
     const newPlayerId = addPlayer();
-    if (newPlayerId) {
-      lastAddedPlayerId.current = newPlayerId;
-    }
+    if (newPlayerId) lastAddedPlayerId.current = newPlayerId;
   };
-
-  // Peer sync
-
-  const areGameStatesEqual = (left: GameState, right: GameState) => {
-    return JSON.stringify(left) === JSON.stringify(right);
-  };
-
-  const handleInitialState = (remoteState: GameState | null, context: InitialStateContext) => {
-    if (context.replaceLocalState) {
-      setSyncConflict(null);
-
-      if (remoteState === null) {
-        suppressNextBroadcastRef.current = false;
-        markLastSyncedAt(null);
-        setGameState(createInitialGameState());
-        return true;
-      }
-
-      const normalizedRemoteState = ensureRevision(remoteState);
-      suppressNextBroadcastRef.current = true;
-      markLastSyncedAt(normalizedRemoteState.updatedAt);
-      setGameState(normalizedRemoteState);
-      return true;
-    }
-
-    if (remoteState === null) {
-      setSyncConflict(null);
-      return true;
-    }
-
-    const normalizedRemoteState = ensureRevision(remoteState);
-    const currentState = latestGameStateRef.current;
-    const localRevision = currentState.updatedAt;
-    const serverRevision = normalizedRemoteState.updatedAt;
-
-    if (localRevision === serverRevision) {
-      suppressNextBroadcastRef.current = true;
-      setSyncConflict(null);
-      markLastSyncedAt(serverRevision);
-
-      if (!areGameStatesEqual(currentState, normalizedRemoteState)) {
-        setGameState(normalizedRemoteState);
-      }
-
-      return true;
-    }
-
-    const baseRevision = lastSyncedAtRef.current;
-
-    if (baseRevision && baseRevision === serverRevision && localRevision !== baseRevision) {
-      setSyncConflict(null);
-      return true;
-    }
-
-    if (baseRevision && baseRevision === localRevision && serverRevision !== baseRevision) {
-      suppressNextBroadcastRef.current = true;
-      setSyncConflict(null);
-      markLastSyncedAt(serverRevision);
-
-      if (!areGameStatesEqual(currentState, normalizedRemoteState)) {
-        setGameState(normalizedRemoteState);
-      }
-
-      return true;
-    }
-
-    if (!baseRevision && isPristineLocalState) {
-      suppressNextBroadcastRef.current = true;
-      setSyncConflict(null);
-      markLastSyncedAt(serverRevision);
-
-      if (!areGameStatesEqual(currentState, normalizedRemoteState)) {
-        setGameState(normalizedRemoteState);
-      }
-
-      return true;
-    }
-
-    setSyncConflict({
-      localState: currentState,
-      serverState: normalizedRemoteState,
-      lastSyncedAt: baseRevision,
-    });
-
-    return false;
-  };
-
-  const handleRemoteUpdate = (remoteState: GameState) => {
-    const normalizedRemoteState = ensureRevision(remoteState);
-    const activeConflict = syncConflictRef.current;
-
-    if (activeConflict) {
-      if (areGameStatesEqual(activeConflict.serverState, normalizedRemoteState)) {
-        return;
-      }
-
-      setSyncConflict((currentConflict) => {
-        if (!currentConflict) {
-          return currentConflict;
-        }
-
-        if (areGameStatesEqual(currentConflict.serverState, normalizedRemoteState)) {
-          return currentConflict;
-        }
-
-        return {
-          ...currentConflict,
-          serverState: normalizedRemoteState,
-        };
-      });
-      return;
-    }
-
-    const currentState = latestGameStateRef.current;
-    if (areGameStatesEqual(currentState, normalizedRemoteState)) {
-      markLastSyncedAt(normalizedRemoteState.updatedAt);
-      return;
-    }
-
-    suppressNextBroadcastRef.current = true;
-    markLastSyncedAt(normalizedRemoteState.updatedAt);
-    setGameState(normalizedRemoteState);
-  };
-
-  const {
-    peerId,
-    connectedPeers,
-    isConnecting,
-    isSyncReady,
-    connectionStatus,
-    syncMode,
-    lastSyncedAt,
-    connectToPeer,
-    resetPeerId,
-    broadcastState,
-    setSyncReady,
-    markLastSyncedAt,
-    workOffline,
-    resumeSync,
-  } = usePeerSync(handleInitialState, handleRemoteUpdate);
-
-  const handleConnectToPeer = (remotePeerId: string) => {
-    setSyncConflict(null);
-    return connectToPeer(remotePeerId);
-  };
-
-  const handleWorkOffline = () => {
-    setSyncConflict(null);
-    workOffline();
-  };
-
-  const handleResumeSync = () => {
-    setSyncConflict(null);
-    return resumeSync();
-  };
-
-  const handleKeepLocalState = () => {
-    setSyncConflict(null);
-    setSyncReady(true);
-  };
-
-  const handleKeepServerState = () => {
-    if (!syncConflict) {
-      return;
-    }
-
-    suppressNextBroadcastRef.current = true;
-    markLastSyncedAt(syncConflict.serverState.updatedAt);
-    setGameState(syncConflict.serverState);
-    setSyncConflict(null);
-    setSyncReady(true);
-  };
-
-  useEffect(() => {
-    latestGameStateRef.current = gameState;
-  }, [gameState]);
-
-  useEffect(() => {
-    lastSyncedAtRef.current = lastSyncedAt;
-  }, [lastSyncedAt]);
-
-  useEffect(() => {
-    if (syncMode === 'offline') {
-      setSyncConflict(null);
-    }
-  }, [syncMode]);
-
-  // Wait until the server has sent the room's initial snapshot (or null for an
-  // empty room) before publishing local changes.
-  useEffect(() => {
-    if (!isSyncReady) {
-      return;
-    }
-    if (suppressNextBroadcastRef.current) {
-      suppressNextBroadcastRef.current = false;
-      return;
-    }
-    broadcastState(gameState);
-  }, [gameState, isSyncReady, broadcastState]);
-
-  const showOfflineBanner = syncMode === 'sync' && connectionStatus !== 'connected';
-  const hasOfflineChanges = lastSyncedAt !== gameState.updatedAt;
 
   useEffect(() => {
     if (!lastAddedPlayerId.current) return;
@@ -428,10 +162,24 @@ const Index = () => {
     }
   }, [gameState.players]);
 
+  // --- Derived state ---
+
+  const showOfflineBanner = syncMode === 'sync' && connectionStatus !== 'connected';
+  const hasOfflineChanges = lastSyncedAt !== gameState.updatedAt;
+
+  const revancheContainerClasses = cn(
+    'absolute right-0 top-full mt-2 z-20 transition-all duration-200',
+    'opacity-0 translate-y-1 scale-95 pointer-events-none',
+    isRevancheVisible && 'opacity-100 translate-y-0 scale-100 pointer-events-auto',
+  );
+
   return (
     <div className="h-svh bg-background relative" style={pageStyles}>
       {/* Header */}
-      <header ref={headerRef} className="fixed top-0 left-0 right-0 z-10 bg-background border-b-4 shadow-md">
+      <header
+        ref={headerRef}
+        className="fixed top-0 left-0 right-0 z-10 bg-background border-b-4 shadow-md"
+      >
         <div className="container max-w-full mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -440,15 +188,10 @@ const Index = () => {
             </div>
             <div className="flex gap-2 items-center relative">
               <ShareDialog
-                roomId={peerId}
-                remoteCount={connectedPeers.length}
-                isConnecting={isConnecting}
-                syncMode={syncMode}
-                connectionStatus={connectionStatus}
-                onConnect={handleConnectToPeer}
+                onConnect={connectToPeer}
                 onResetRoomId={resetPeerId}
-                onWorkOffline={handleWorkOffline}
-                onResumeSync={handleResumeSync}
+                onWorkOffline={workOffline}
+                onResumeSync={resumeSync}
               />
               <ShareNutsAboutStatsButton gameState={gameState} />
 
@@ -458,32 +201,31 @@ const Index = () => {
                   size="icon"
                   onClick={handleResetClick}
                   onPointerDown={handleResetPointerDown}
-                  onPointerUp={handleResetPointerEnd}
+                  onPointerUp={handleResetLongPressPointerUp}
                   onPointerLeave={handleResetPointerLeave}
-                  onPointerCancel={handleResetPointerCancel}
+                  onPointerCancel={handleResetLongPressPointerCancel}
                   onPointerEnter={handleResetPointerEnter}
-                  onFocus={handleResetFocus}
-                  onBlur={handleResetBlur}
+                  onFocus={showRevanche}
+                  onBlur={() => hideRevanche()}
                   aria-label="Spiel zurücksetzen"
-
                 >
                   <RotateCcw className="w-5 h-5" />
                 </Button>
                 <div className={revancheContainerClasses}>
-                    <Button
-                      variant="outline"
-                      onClick={handleRevancheClick}
-                      className="min-w-[130px] justify-center shadow-lg select-none"
-                      onPointerEnter={handleRevanchePointerEnter}
-                      onPointerLeave={handleRevanchePointerLeave}
-                      onFocus={handleRevancheFocus}
-                      onBlur={handleRevancheBlur}
-                      tabIndex={isRevancheVisible ? 0 : -1}
-                      aria-hidden={!isRevancheVisible}
-                    >
-                      <RefreshCcw className="w-4 h-4" />
-                      Revanche
-                    </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleRevancheClick}
+                    className="min-w-[130px] justify-center shadow-lg select-none"
+                    onPointerEnter={handleRevanchePointerEnter}
+                    onPointerLeave={handleRevanchePointerLeave}
+                    onFocus={showRevanche}
+                    onBlur={() => hideRevanche()}
+                    tabIndex={isRevancheVisible ? 0 : -1}
+                    aria-hidden={!isRevancheVisible}
+                  >
+                    <RefreshCcw className="w-4 h-4" />
+                    Revanche
+                  </Button>
                 </div>
               </div>
             </div>
@@ -496,7 +238,6 @@ const Index = () => {
           {hasOfflineChanges ? 'Offline (changes)' : 'Offline (no changes)'}
         </div>
       ) : null}
-
 
       <main className="container max-w-full mx-auto px-0 py-4">
         {/* Player Names Management */}
@@ -530,12 +271,7 @@ const Index = () => {
                 )}
               </div>
             ))}
-            <Button
-              onClick={handleAddPlayer}
-              variant="outline"
-              size="sm"
-              className="w-full"
-            >
+            <Button onClick={handleAddPlayer} variant="outline" size="sm" className="w-full">
               <Plus className="w-4 h-4 mr-1" />
               Spieler hinzufügen
             </Button>
@@ -543,19 +279,27 @@ const Index = () => {
         </div>
 
         {/* Score Table */}
-        {/* optimally, only this table would scroll horizontally, but this is not possible as sticky does not respect specific axis! */}
         <div className="bg-card rounded-lg border border-border z-20 relative">
-            <div className="min-w-min bg-background">
-              {/* Player Names Header - Read Only */}
-
-              <div className="sticky z-30 bg-card border-b-2 border-border shadow-sm" style={{top: `-${headerOffset}px`}}>
-                <div className="grid gap-2 py-2" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
-
+          <div className="min-w-min bg-background">
+            {/* Player Names Header */}
+            <div
+              className="sticky z-30 bg-card border-b-2 border-border shadow-sm"
+              style={{ top: `-${headerOffset}px` }}
+            >
+              <div
+                className="grid gap-2 py-2"
+                style={{
+                  gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))`,
+                }}
+              >
                 <div className="sticky left-0 bg-card px-3 py-1 font-bold text-xs z-10">
                   Spieler
                 </div>
                 {gameState.players.map((player, index) => (
-                  <div key={player.id} className="px-2 text-center text-xs font-medium z-10 truncate">
+                  <div
+                    key={player.id}
+                    className="px-2 text-center text-xs font-medium z-10 truncate"
+                  >
                     {player.name || `Spieler ${index + 1}`}
                   </div>
                 ))}
@@ -564,14 +308,18 @@ const Index = () => {
 
             {/* Upper Section */}
             <div className="border-b-2 border-border pb-2 z-20 bg-background">
-              <div className="grid" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
+              <div
+                className="grid"
+                style={{
+                  gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))`,
+                }}
+              >
                 <div className="bg-muted px-3 py-2 font-bold text-sm sticky left-0 z-10">
                   Oberer Teil
                 </div>
-              {gameState.players.map(p =>
-              <div key={p.id} className="bg-muted"></div>
-              )}
-
+                {gameState.players.map((p) => (
+                  <div key={p.id} className="bg-muted"></div>
+                ))}
               </div>
               <ScoreRow label="Einser" description="nur Einser" players={gameState.players} fieldKey="ones" section="upper" onUpdate={updateCell} />
               <ScoreRow label="Zweier" description="nur Zweier" players={gameState.players} fieldKey="twos" section="upper" onUpdate={updateCell} />
@@ -587,13 +335,18 @@ const Index = () => {
 
             {/* Lower Section */}
             <div className="pt-2 z-20 bg-background">
-              <div className="grid" style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))` }}>
+              <div
+                className="grid"
+                style={{
+                  gridTemplateColumns: `minmax(120px, 1fr) repeat(${gameState.players.length}, minmax(80px, 1fr))`,
+                }}
+              >
                 <div className="bg-muted px-3 py-2 font-bold text-sm sticky left-0 z-10">
                   Unterer Teil
                 </div>
-                {gameState.players.map(p =>
-                <div key={p.id} className="bg-muted"></div>
-                )}
+                {gameState.players.map((p) => (
+                  <div key={p.id} className="bg-muted"></div>
+                ))}
               </div>
               <ScoreRow label="Dreierpasch" description="alle Augen" players={gameState.players} fieldKey="threeOfKind" section="lower" onUpdate={updateCell} />
               <ScoreRow label="Viererpasch" description="alle Augen" players={gameState.players} fieldKey="fourOfKind" section="lower" onUpdate={updateCell} />
@@ -616,7 +369,7 @@ const Index = () => {
               <TotalRow label="Endsumme" players={gameState.players} getValue={calculateGrandTotal} highlighted stickyBottom />
             </div>
           </div>
-      </div>
+        </div>
       </main>
 
       <Dialog open={syncConflict !== null}>
@@ -624,7 +377,8 @@ const Index = () => {
           <DialogHeader>
             <DialogTitle>Konflikt beim Wiederverbinden</DialogTitle>
             <DialogDescription>
-              Sowohl dein lokaler Stand als auch der Raum wurden seit dem letzten gemeinsamen Stand geaendert. Waehle aus, welche Version erhalten bleiben soll.
+              Sowohl dein lokaler Stand als auch der Raum wurden seit dem letzten gemeinsamen Stand
+              geaendert. Waehle aus, welche Version erhalten bleiben soll.
             </DialogDescription>
           </DialogHeader>
 
@@ -632,15 +386,21 @@ const Index = () => {
             <div className="space-y-3 text-sm">
               <div className="rounded-md border p-3">
                 <p className="font-medium">Lokale Version</p>
-                <p className="text-muted-foreground">{formatTimestamp(syncConflict.localState.updatedAt)}</p>
+                <p className="text-muted-foreground">
+                  {formatTimestamp(syncConflict.localState.updatedAt)}
+                </p>
               </div>
               <div className="rounded-md border p-3">
                 <p className="font-medium">Raum-Version</p>
-                <p className="text-muted-foreground">{formatTimestamp(syncConflict.serverState.updatedAt)}</p>
+                <p className="text-muted-foreground">
+                  {formatTimestamp(syncConflict.serverState.updatedAt)}
+                </p>
               </div>
               <div className="rounded-md border p-3">
                 <p className="font-medium">Zuletzt synchronisiert</p>
-                <p className="text-muted-foreground">{formatTimestamp(syncConflict.lastSyncedAt)}</p>
+                <p className="text-muted-foreground">
+                  {formatTimestamp(syncConflict.lastSyncedAt)}
+                </p>
               </div>
             </div>
           ) : null}

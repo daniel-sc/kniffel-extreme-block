@@ -126,6 +126,21 @@ After the handshake:
 - every incoming remote `sync` replaces the full local state
 - identical states are ignored via `JSON.stringify` equality checks
 
+#### Outdated update detection
+
+When a remote `sync` message carries a revision (`updatedAt`) older than the client's `lastSyncedAt`, the client recognizes that updates have crossed on the wire: the local edit was already sent, but the incoming state was created before the server received it.
+
+In this case the remote state is still applied (last-write-wins is preserved), but the client shows a toast notification informing the user that their last edit was overwritten by a concurrent change.
+
+This detection is **asymmetric by design**.  In a two-player concurrent edit scenario:
+
+1. Player A edits at T1, broadcasts, sets `lastSyncedAt` = T1.
+2. Player B edits at T2 (T2 > T1), broadcasts, sets `lastSyncedAt` = T2.
+3. A receives B's state (`updatedAt` = T2 > `lastSyncedAt` = T1) — indistinguishable from a normal update, **no toast**.
+4. B receives A's state (`updatedAt` = T1 < `lastSyncedAt` = T2) — outdated, **toast shown**.
+
+Only the player who edited second (B) is notified.  B can then re-enter their overwritten edit on top of A's state, producing a combined state that is broadcast to A.  This resolves the conflict for both players in the common case, even though A was never explicitly notified.
+
 ## Server Behavior
 
 For each room, the Durable Object keeps:
@@ -155,9 +170,10 @@ The effective behavior is:
 
 Consequences:
 
-- concurrent live edits can still overwrite each other
+- concurrent live edits still overwrite each other (last-write-wins)
+- when an outdated remote update is detected, a toast notifies the user (see "Outdated update detection" above); this detection is asymmetric and only catches one of the two peers
 - field-level merges do not exist
-- there is no causal ordering, revision number, timestamp check, or compare-and-swap
+- there is no causal ordering, revision number, or compare-and-swap
 
 This is acceptable for a low-frequency shared scoreboard, but it is not safe for high-contention collaboration.
 
@@ -204,7 +220,8 @@ Offline changes are still not merged with remote changes; the app now resolves t
 
 ### Consistency gaps
 
-- No conflict detection or merge strategy beyond last-write-wins.
+- No field-level merge strategy; concurrent edits resolve as full-state last-write-wins.
+- Outdated update detection catches one of two concurrent editors (asymmetric); the other peer's overwrite is silent.
 - No history or undo on the server.
 - Equality checks use serialized JSON shape equality, which is simple but coarse.
 
@@ -213,7 +230,7 @@ Offline changes are still not merged with remote changes; the app now resolves t
 - No durable offline outbox.
 - No app-level reconnect state machine; `isReconnecting` is exposed but currently fixed to `false`.
 - A failed initial connection is only logged; there is no explicit user-facing recovery path besides reconnecting manually.
-- Concurrent live edits still resolve as last-write-wins once both clients are connected.
+- Concurrent live edits still resolve as last-write-wins; outdated update detection provides a toast for one of the two peers but does not prevent the overwrite.
 
 ## Bottom Line
 
