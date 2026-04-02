@@ -4,6 +4,9 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { GameCell, Player } from '@/types/game';
 import { X } from 'lucide-react';
 
+const strikeButtonClasses = 'box-content h-6 w-6 -m-1 p-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
+const strikeBadgeClasses = 'flex h-6 w-6 items-center justify-center rounded';
+
 interface ScoreRowProps {
   label: string;
   description?: string;
@@ -44,25 +47,38 @@ export const ScoreRow = memo(({
 
         if (isFixed) {
           const isAchieved = cell.value === 1 && !cell.struck;
+          const achievedId = `${section}-${fieldKey}-${player.id}-achieved`;
+
           return (
             <div key={player.id} className="flex items-center justify-center gap-1 px-2 py-1.5 bg-card">
-              <Checkbox
-                checked={isAchieved}
-                disabled={cell.struck}
-                onCheckedChange={(checked) =>
-                  onUpdate(player.id, section, fieldKey, { value: checked ? 1 : null })
-                }
-                className="h-5 w-5"
-              />
-              <span className="text-xs font-bold w-6 text-center">
-                {cell.struck ? '0' : (isAchieved ? fixedPoints : '0')}
-              </span>
-              <button
-                onClick={() => onUpdate(player.id, section, fieldKey, { struck: !cell.struck })}
-                className={`w-6 h-6 flex items-center justify-center rounded ${cell.struck ? 'bg-destructive/20 text-destructive' : 'bg-muted hover:bg-muted/80'}`}
-                title="Strike"
+              <label
+                htmlFor={achievedId}
+                className={`inline-flex select-none items-center gap-1 rounded-md px-1 py-1.5 -mx-1 -my-1.5 ${cell.struck ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-muted/60'}`}
               >
-                <X className="w-3 h-3" />
+                <Checkbox
+                  id={achievedId}
+                  checked={isAchieved}
+                  disabled={cell.struck}
+                  onCheckedChange={(checked) =>
+                    onUpdate(player.id, section, fieldKey, { value: checked ? 1 : null })
+                  }
+                  className="h-5 w-5"
+                  aria-label={`${label} erreichen`}
+                />
+                <span className="w-6 text-center text-xs font-bold">
+                  {cell.struck ? '0' : (isAchieved ? fixedPoints : '0')}
+                </span>
+              </label>
+              <button
+                type="button"
+                onClick={() => onUpdate(player.id, section, fieldKey, { struck: !cell.struck })}
+                className={strikeButtonClasses}
+                title="Strike"
+                aria-label={`${label} streichen`}
+              >
+                <span className={`${strikeBadgeClasses} ${cell.struck ? 'bg-destructive/20 text-destructive' : 'bg-muted hover:bg-muted/80'}`}>
+                  <X className="w-3 h-3" />
+                </span>
               </button>
             </div>
           );
@@ -84,11 +100,15 @@ export const ScoreRow = memo(({
               className="h-6 w-10 text-center text-xs font-bold px-1"
             />
             <button
+              type="button"
               onClick={() => onUpdate(player.id, section, fieldKey, { struck: !cell.struck })}
-              className={`w-6 h-6 flex items-center justify-center rounded ${cell.struck ? 'bg-destructive/20 text-destructive' : 'bg-muted hover:bg-muted/80'}`}
+              className={strikeButtonClasses}
               title="Strike"
+              aria-label={`${label} streichen`}
             >
-              <X className="w-3 h-3" />
+              <span className={`${strikeBadgeClasses} ${cell.struck ? 'bg-destructive/20 text-destructive' : 'bg-muted hover:bg-muted/80'}`}>
+                <X className="w-3 h-3" />
+              </span>
             </button>
           </div>
         );
