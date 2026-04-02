@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import {useState} from 'react';
 import {
   Dialog,
   DialogContent,
@@ -7,12 +7,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Users, Copy, Check, Loader2, RefreshCcw, Share2 } from 'lucide-react';
-import { toast } from '@/hooks/use-toast';
-import { useGameStore } from '@/store/gameStore';
+import {Button} from '@/components/ui/button';
+import {Input} from '@/components/ui/input';
+import {Label} from '@/components/ui/label';
+import {Check, Copy, Loader2, RefreshCcw, Share2, Users} from 'lucide-react';
+import {toast} from '@/hooks/use-toast';
+import {useGameStore} from '@/store/gameStore';
 
 interface ShareDialogProps {
   onConnect: (roomId: string) => Promise<void>;
@@ -21,12 +21,14 @@ interface ShareDialogProps {
   onResumeSync: () => Promise<void>;
 }
 
+
 export const ShareDialog = ({
   onConnect,
   onResetRoomId,
   onWorkOffline,
   onResumeSync,
 }: ShareDialogProps) => {
+  const buildTimestamp = import.meta.env.VITE_BUILD_TIMESTAMP;
   const roomId = useGameStore((s) => s.roomId);
   const connectedPeers = useGameStore((s) => s.connectedPeers);
   const syncMode = useGameStore((s) => s.syncMode);
@@ -223,6 +225,9 @@ export const ShareDialog = ({
 
           <p className="text-xs text-muted-foreground">
             Aenderungen werden als kompletter Spielzustand in denselben Raum uebertragen.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Build: {buildTimestamp || 'unknown'}
           </p>
         </div>
       </DialogContent>

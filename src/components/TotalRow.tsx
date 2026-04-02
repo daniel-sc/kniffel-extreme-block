@@ -13,7 +13,10 @@ export const TotalRow = memo(({ label, players, getValue, highlighted = false, s
   return (
     <div
       className={`grid gap-2 ${highlighted ? 'bg-secondary-foreground text-primary border-y border-primary/20' : ''} ${stickyBottom ? 'sticky bottom-0 z-10' : ''}`}
-      style={{ gridTemplateColumns: `minmax(120px, 1fr) repeat(${players.length}, minmax(80px, 1fr))` }}
+      style={{
+        bottom: stickyBottom ? 'var(--safe-area-bottom)' : undefined,
+        gridTemplateColumns: `minmax(120px, 1fr) repeat(${players.length}, minmax(80px, 1fr))`,
+      }}
     >
       <div className={`sticky left-0 ${highlighted ? '' : 'bg-card'} border-r border-border px-3 py-1.5 font-bold text-xs z-10`}>
         {label}

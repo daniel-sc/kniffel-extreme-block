@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
 interface ImportMetaEnv {
+  readonly VITE_BUILD_TIMESTAMP?: string;
   readonly VITE_SYNC_HOST?: string;
   readonly VITE_SYNC_PARTY?: string;
   readonly VITE_PARTYKIT_HOST?: string;
