@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -9,7 +9,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useElementSize } from '@/hooks/useElementSize';
 import { Input } from '@/components/ui/input';
 import { ScoreRow } from '@/components/ScoreRow';
 import { TotalRow } from '@/components/TotalRow';
@@ -51,13 +50,6 @@ const Index = () => {
 
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const lastAddedPlayerId = useRef<string | null>(null);
-  const { ref: headerRef, size: headerSize } = useElementSize<HTMLDivElement>();
-  const headerOffset = headerSize.height || 88;
-  const pageStyles: CSSProperties = {
-    paddingTop: headerOffset,
-    overflowY: 'auto',
-    overflowX: 'visible',
-  };
 
   const { connectToPeer, resetPeerId, workOffline, resumeSync } = usePeerSync();
 
@@ -174,11 +166,11 @@ const Index = () => {
   );
 
   return (
-    <div className="h-svh bg-background relative" style={pageStyles}>
+    <div className="min-h-dvh bg-background relative" style={{ paddingBottom: 'var(--safe-area-bottom)' }}>
       {/* Header */}
       <header
-        ref={headerRef}
-        className="fixed top-0 left-0 right-0 z-10 bg-background border-b-4 shadow-md"
+        className="sticky top-0 z-20 bg-background border-b-4 shadow-md"
+        style={{ paddingTop: 'var(--safe-area-top)' }}
       >
         <div className="container max-w-full mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -284,7 +276,7 @@ const Index = () => {
             {/* Player Names Header */}
             <div
               className="sticky z-30 bg-card border-b-2 border-border shadow-sm"
-              style={{ top: `-${headerOffset}px` }}
+              style={{ top: 'var(--safe-area-top)' }}
             >
               <div
                 className="grid gap-2 py-2"
