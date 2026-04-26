@@ -6,6 +6,22 @@ import { X } from 'lucide-react';
 
 const strikeButtonClasses = 'box-content h-6 w-6 -m-1 p-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 const strikeBadgeClasses = 'flex h-6 w-6 items-center justify-center rounded';
+const scoreInputPattern = /\D+/g;
+
+const formatScoreInputValue = (cell: GameCell) => {
+  if (cell.struck) return '0';
+  return cell.value === null ? '' : String(cell.value);
+};
+
+const parseScoreInputValue = (rawValue: string) => {
+  const digitsOnly = rawValue.replace(scoreInputPattern, '').slice(0, 2);
+
+  if (digitsOnly === '') {
+    return null;
+  }
+
+  return Number(digitsOnly);
+};
 
 interface ScoreRowProps {
   label: string;
@@ -87,13 +103,16 @@ export const ScoreRow = memo(({
         return (
           <div key={player.id} className="flex items-center justify-center gap-1 px-2 py-1.5 bg-card">
             <Input
-              type="number"
+              // Use text + inputMode instead of type=number to avoid iOS/WebKit
+              // rendering desyncs where externally synced values can fail to appear
+              // in the visible field while React state has already updated.
+              type="text"
               inputMode="numeric"
-              min="0"
-              max="99"
-              value={cell.struck ? '0' : (cell.value ?? '')}
+              pattern="[0-9]*"
+              maxLength={2}
+              value={formatScoreInputValue(cell)}
               onChange={(e) => {
-                const val = e.target.value === '' ? null : parseInt(e.target.value);
+                const val = parseScoreInputValue(e.target.value);
                 onUpdate(player.id, section, fieldKey, { value: val });
               }}
               disabled={cell.struck}
