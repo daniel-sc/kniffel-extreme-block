@@ -101,20 +101,51 @@ const readStoredSyncMode = (): SyncMode => {
   return localStorage.getItem(SYNC_MODE_STORAGE_KEY) === 'offline' ? 'offline' : 'sync';
 };
 
-export const readStoredLastSyncedAt = (roomId: string) => {
+const readStoredRoomId = () => {
+  if (typeof window === 'undefined') return '';
+  return localStorage.getItem(ROOM_ID_STORAGE_KEY) || '';
+};
+
+const readStoredLastSyncedAt = (roomId: string) => {
   if (typeof window === 'undefined' || !roomId) return null;
   return localStorage.getItem(`${LAST_SYNCED_AT_STORAGE_PREFIX}:${roomId}`);
 };
 
-const storeLastSyncedAt = (roomId: string, updatedAt: string | null) => {
-  if (typeof window === 'undefined' || !roomId) return;
-  const key = `${LAST_SYNCED_AT_STORAGE_PREFIX}:${roomId}`;
-  if (updatedAt) {
-    localStorage.setItem(key, updatedAt);
+interface StoredClientSnapshot {
+  gameState: GameState;
+  isPristineLocalState: boolean;
+  roomId: string;
+  syncMode: SyncMode;
+  lastSyncedAt: string | null;
+}
+
+const readStoredClientSnapshot = (): StoredClientSnapshot => {
+  const roomId = readStoredRoomId();
+  return {
+    gameState: loadInitialGameState(),
+    isPristineLocalState: readStoredPristineState(),
+    roomId,
+    syncMode: readStoredSyncMode(),
+    lastSyncedAt: readStoredLastSyncedAt(roomId),
+  };
+};
+
+const writeStoredClientSnapshot = (snapshot: StoredClientSnapshot) => {
+  localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(snapshot.gameState));
+  localStorage.setItem(GAME_PRISTINE_STORAGE_KEY, String(snapshot.isPristineLocalState));
+  localStorage.setItem(ROOM_ID_STORAGE_KEY, snapshot.roomId);
+  localStorage.setItem(SYNC_MODE_STORAGE_KEY, snapshot.syncMode);
+
+  if (!snapshot.roomId) return;
+  const lastSyncedAtKey = `${LAST_SYNCED_AT_STORAGE_PREFIX}:${snapshot.roomId}`;
+  if (snapshot.lastSyncedAt) {
+    localStorage.setItem(lastSyncedAtKey, snapshot.lastSyncedAt);
   } else {
-    localStorage.removeItem(key);
+    localStorage.removeItem(lastSyncedAtKey);
   }
 };
+
+const initialClientSnapshot = readStoredClientSnapshot();
 
 // --- Broadcast suppression (imperative flag, not reactive) ---
 
@@ -188,8 +219,8 @@ interface GameStore {
 
 export const useGameStore = create<GameStore>()((set, get) => ({
   // --- Game state ---
-  gameState: loadInitialGameState(),
-  isPristineLocalState: readStoredPristineState(),
+  gameState: initialClientSnapshot.gameState,
+  isPristineLocalState: initialClientSnapshot.isPristineLocalState,
 
   updateCell: (playerId, section, field, updates) => {
     set((s) => ({
@@ -245,7 +276,6 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   },
 
   resetGame: () => {
-    localStorage.removeItem(GAME_STORAGE_KEY);
     set({ isPristineLocalState: false, gameState: createInitialGameState() });
   },
 
@@ -266,20 +296,18 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   },
 
   // --- Sync state ---
-  roomId: '',
+  roomId: initialClientSnapshot.roomId,
   connectionStatus: 'disconnected',
   isSyncReady: false,
   connectedPeers: [],
-  syncMode: readStoredSyncMode(),
-  lastSyncedAt: null,
+  syncMode: initialClientSnapshot.syncMode,
+  lastSyncedAt: initialClientSnapshot.lastSyncedAt,
   syncConflict: null,
 
   // --- Sync: composite operations ---
 
   applyRemoteSync: (state, lastSyncedAt) => {
     suppressBroadcastOnce();
-    const { roomId } = get();
-    if (roomId) storeLastSyncedAt(roomId, lastSyncedAt);
     set({
       lastSyncedAt,
       isPristineLocalState: false,
@@ -289,11 +317,6 @@ export const useGameStore = create<GameStore>()((set, get) => ({
 
   applyInitialStateResolution: (resolution, replaceWithFresh) => {
     if (resolution.suppressBroadcast) suppressBroadcastOnce();
-
-    if (resolution.newLastSyncedAt !== undefined) {
-      const { roomId } = get();
-      if (roomId) storeLastSyncedAt(roomId, resolution.newLastSyncedAt);
-    }
 
     const newGameState = resolution.applyState
       ? normalizeGameState(resolution.applyState)
@@ -316,10 +339,9 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   },
 
   resolveConflictKeepServer: () => {
-    const { syncConflict, roomId } = get();
+    const { syncConflict } = get();
     if (!syncConflict) return;
     suppressBroadcastOnce();
-    if (roomId) storeLastSyncedAt(roomId, syncConflict.serverState.updatedAt);
     set({
       lastSyncedAt: syncConflict.serverState.updatedAt,
       isPristineLocalState: false,
@@ -330,20 +352,20 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   },
 
   goOffline: () => {
-    localStorage.setItem(SYNC_MODE_STORAGE_KEY, 'offline');
     set({ syncMode: 'offline', syncConflict: null });
   },
 
   beginRoomConnection: (nextRoomId) => {
-    localStorage.setItem(ROOM_ID_STORAGE_KEY, nextRoomId);
-    localStorage.setItem(SYNC_MODE_STORAGE_KEY, 'sync');
-    set({
+    set((state) => ({
       roomId: nextRoomId,
-      lastSyncedAt: readStoredLastSyncedAt(nextRoomId),
+      lastSyncedAt:
+        state.roomId === nextRoomId
+          ? state.lastSyncedAt
+          : readStoredLastSyncedAt(nextRoomId),
       syncMode: 'sync',
       connectionStatus: 'connecting',
       isSyncReady: false,
-    });
+    }));
   },
 
   // --- Sync: granular setters ---
@@ -362,23 +384,37 @@ export const useGameStore = create<GameStore>()((set, get) => ({
   },
 
   markLastSyncedAt: (updatedAt) => {
-    const { roomId } = get();
-    if (roomId) storeLastSyncedAt(roomId, updatedAt);
     set({ lastSyncedAt: updatedAt });
   },
 
   updateRoom: (nextRoomId) => {
-    localStorage.setItem(ROOM_ID_STORAGE_KEY, nextRoomId);
-    set({ roomId: nextRoomId, lastSyncedAt: readStoredLastSyncedAt(nextRoomId) });
+    set((state) => ({
+      roomId: nextRoomId,
+      lastSyncedAt:
+        state.roomId === nextRoomId
+          ? state.lastSyncedAt
+          : readStoredLastSyncedAt(nextRoomId),
+    }));
   },
 }));
 
-// Persist game state to localStorage on every change
+// Persist one coherent client snapshot whenever one of its fields changes.
 useGameStore.subscribe((state, prevState) => {
-  if (state.gameState !== prevState.gameState) {
-    localStorage.setItem(GAME_STORAGE_KEY, JSON.stringify(state.gameState));
+  if (
+    state.gameState === prevState.gameState &&
+    state.isPristineLocalState === prevState.isPristineLocalState &&
+    state.roomId === prevState.roomId &&
+    state.syncMode === prevState.syncMode &&
+    state.lastSyncedAt === prevState.lastSyncedAt
+  ) {
+    return;
   }
-  if (state.isPristineLocalState !== prevState.isPristineLocalState) {
-    localStorage.setItem(GAME_PRISTINE_STORAGE_KEY, String(state.isPristineLocalState));
-  }
+
+  writeStoredClientSnapshot({
+    gameState: state.gameState,
+    isPristineLocalState: state.isPristineLocalState,
+    roomId: state.roomId,
+    syncMode: state.syncMode,
+    lastSyncedAt: state.lastSyncedAt,
+  });
 });

@@ -4,7 +4,6 @@ import { GameState } from '@/types/game';
 import { SyncMessage } from '@/types/sync';
 import {
   useGameStore,
-  readStoredLastSyncedAt,
   consumeBroadcastSuppression,
 } from '@/store/gameStore';
 import { resolveInitialState, resolveRemoteUpdate } from '@/utils/syncResolution';
@@ -23,11 +22,6 @@ const generateRoomId = () => {
     return crypto.randomUUID();
   }
   return `room-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-};
-
-const readStoredRoomId = () => {
-  if (typeof window === 'undefined') return '';
-  return localStorage.getItem('kniffel-extreme-sync-room-id') || '';
 };
 
 const readSharedRoomId = () => {
@@ -84,7 +78,7 @@ export const usePeerSync = () => {
       const result = resolveInitialState({
         localState: s.gameState,
         remoteState,
-        lastSyncedAt: readStoredLastSyncedAt(context.roomId),
+        lastSyncedAt: s.lastSyncedAt,
         isPristine: s.isPristineLocalState,
         replaceLocalState: context.replaceLocalState,
       });
@@ -249,7 +243,7 @@ export const usePeerSync = () => {
 
   useEffect(() => {
     const sharedRoomId = readSharedRoomId();
-    const storedRoomId = readStoredRoomId();
+    const storedRoomId = store.getState().roomId;
     const initialRoomId = sharedRoomId || storedRoomId || generateRoomId();
 
     if (sharedRoomId) {
@@ -329,7 +323,7 @@ export const usePeerSync = () => {
 
   const resumeSync = useCallback(async () => {
     store.getState().setSyncConflict(null);
-    const targetRoomId = store.getState().roomId || readStoredRoomId() || generateRoomId();
+    const targetRoomId = store.getState().roomId || generateRoomId();
     await connectToRoom(targetRoomId);
   }, [connectToRoom, store]);
 
