@@ -116,7 +116,7 @@ export const ScoreRow = memo(({
                 onUpdate(player.id, section, fieldKey, { value: val });
               }}
               disabled={cell.struck}
-              className="h-6 w-10 text-center text-xs font-bold px-1"
+              className="block h-8 w-10 px-1 py-0 text-center text-base font-bold leading-5 md:text-base"
             />
             <button
               type="button"
