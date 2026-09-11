@@ -12,6 +12,7 @@ interface TotalRowProps {
 export const TotalRow = memo(({ label, players, getValue, highlighted = false, stickyBottom = false }: TotalRowProps) => {
   return (
     <div
+      data-score-total={label}
       className={`grid gap-2 ${highlighted ? 'bg-secondary-foreground text-primary border-y border-primary/20' : ''} ${stickyBottom ? 'sticky bottom-0 z-10' : ''}`}
       style={{
         bottom: stickyBottom ? 'var(--safe-area-bottom)' : undefined,

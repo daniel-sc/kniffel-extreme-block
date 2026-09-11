@@ -56,7 +56,7 @@ export const ScoreRow = memo(({
         )}
       </div>
 
-      {players.map((player) => {
+      {players.map((player, playerIndex) => {
         const cell = section === 'upper'
           ? player.upper[fieldKey as keyof typeof player.upper] as GameCell
           : player.lower[fieldKey as keyof typeof player.lower] as GameCell;
@@ -108,6 +108,9 @@ export const ScoreRow = memo(({
               // in the visible field while React state has already updated.
               type="text"
               inputMode="numeric"
+              data-score-player={playerIndex}
+              data-score-section={section}
+              data-score-field={fieldKey}
               pattern="[0-9]*"
               maxLength={2}
               value={formatScoreInputValue(cell)}

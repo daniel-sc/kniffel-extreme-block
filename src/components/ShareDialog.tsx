@@ -13,6 +13,7 @@ import {Label} from '@/components/ui/label';
 import {Check, Copy, Loader2, RefreshCcw, Share2, Users} from 'lucide-react';
 import {toast} from '@/hooks/use-toast';
 import {useGameStore} from '@/store/gameStore';
+import { scoreDiagnosticsEnabled } from '@/utils/scoreDiagnostics';
 
 interface ShareDialogProps {
   onConnect: (roomId: string) => Promise<void>;
@@ -61,6 +62,7 @@ export const ShareDialog = ({
     try {
       const url = new URL(window.location.href);
       url.searchParams.set('room', roomId);
+      url.searchParams.delete('scoreDiagnostics');
       await navigator.clipboard.writeText(url.toString());
       toast({
         title: 'Link kopiert!',
@@ -229,6 +231,24 @@ export const ShareDialog = ({
           <p className="text-xs text-muted-foreground">
             Build: {buildTimestamp || 'unknown'}
           </p>
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer">Fehlersuche</summary>
+            <p className="my-2">
+              Zeichnet Spielwerte und Verbindungsereignisse nur auf diesem Gerät auf.
+              Das Umschalten lädt die App neu.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const url = new URL(window.location.href);
+                url.searchParams.set('scoreDiagnostics', scoreDiagnosticsEnabled ? '0' : '1');
+                window.location.replace(url.toString());
+              }}
+            >
+              {scoreDiagnosticsEnabled ? 'Score-Diagnose ausschalten' : 'Score-Diagnose einschalten'}
+            </Button>
+          </details>
         </div>
       </DialogContent>
     </Dialog>

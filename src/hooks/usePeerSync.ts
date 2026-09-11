@@ -8,6 +8,7 @@ import {
 } from '@/store/gameStore';
 import { resolveInitialState, resolveRemoteUpdate } from '@/utils/syncResolution';
 import { toast } from '@/hooks/use-toast';
+import { recordScoreDiagnostics } from '@/utils/scoreDiagnostics';
 
 const ROOM_PARAM_KEY = 'room';
 const DEFAULT_PARTY_NAME = 'kniffel-sync';
@@ -194,6 +195,9 @@ export const usePeerSync = () => {
           if (socketRef.current !== socket || store.getState().syncMode !== 'sync') return;
           try {
             const message = JSON.parse(String(event.data)) as SyncMessage<GameState>;
+            if (message.type === 'sync' || message.type === 'initial-state') {
+              recordScoreDiagnostics(`incoming:${message.type}`, message.state);
+            }
 
             if (message.type === 'initial-state') {
               hasReceivedInitialStateRef.current = true;

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,6 +12,8 @@ import {
 import { useElementSize } from '@/hooks/useElementSize';
 import { Input } from '@/components/ui/input';
 import { ScoreRow } from '@/components/ScoreRow';
+import { ScoreDiagnostics } from '@/components/ScoreDiagnostics';
+import { recordScoreDiagnostics } from '@/utils/scoreDiagnostics';
 import { TotalRow } from '@/components/TotalRow';
 import { ShareDialog } from '@/components/ShareDialog';
 import { ShareNutsAboutStatsButton } from '@/components/ShareNutsAboutStatsButton';
@@ -38,6 +40,7 @@ const formatTimestamp = (timestamp: string | null) => {
 
 const Index = () => {
   const gameState = useGameStore((s) => s.gameState);
+  useLayoutEffect(() => recordScoreDiagnostics('react-commit'), [gameState]);
   const syncConflict = useGameStore((s) => s.syncConflict);
   const updateCell = useGameStore((s) => s.updateCell);
   const updatePlayerName = useGameStore((s) => s.updatePlayerName);
@@ -371,6 +374,7 @@ const Index = () => {
         </div>
       </main>
 
+      <ScoreDiagnostics />
       <Dialog open={syncConflict !== null}>
         <DialogContent className="[&>button]:hidden">
           <DialogHeader>
