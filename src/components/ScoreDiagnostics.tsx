@@ -24,7 +24,7 @@ export const ScoreDiagnostics = () => {
   return (
     <>
       <Button
-        className="fixed bottom-3 right-3 z-50 shadow-lg"
+        className="fixed bottom-3 left-3 z-50 shadow-lg"
         style={{ bottom: 'calc(var(--safe-area-bottom) + 0.75rem)' }}
         onPointerDown={() => {
           // Capture before button focus or the dialog can disturb the blank field.
@@ -37,7 +37,7 @@ export const ScoreDiagnostics = () => {
           setCopyStatus('Bericht kopieren');
         }}
       >
-        Diagnose erfassen
+        Diagnose
       </Button>
       <Dialog open={report !== null} onOpenChange={(open) => { if (!open) setReport(null); }}>
         <DialogContent>
